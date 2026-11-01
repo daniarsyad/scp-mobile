@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../config/api_config.dart';
 import '../../models/user_model.dart';
 import '../../services/api_service.dart';
@@ -94,9 +95,12 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
     final name = widget.user.fullname.isEmpty
         ? (widget.isBk ? 'Guru BK' : 'Wali Kelas')
         : widget.user.fullname;
-    final role = widget.user.roleName ?? (widget.isBk ? 'Guru BK' : 'Wali Kelas');
+    final role =
+        widget.user.roleName ?? (widget.isBk ? 'Guru BK' : 'Wali Kelas');
     final scoped = _scopedLeaves();
-    final missingSurat = scoped.where((item) => firstMedia(item, suratKeys) == null).length;
+    final missingSurat = scoped
+        .where((item) => firstMedia(item, suratKeys) == null)
+        .length;
     final withSurat = scoped.length - missingSurat;
 
     return RefreshIndicator(
@@ -117,7 +121,9 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
           if (_loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 48),
-              child: Center(child: CircularProgressIndicator(color: ScpColors.blue)),
+              child: Center(
+                child: CircularProgressIndicator(color: ScpColors.blue),
+              ),
             )
           else ...[
             // Hero Card
@@ -126,13 +132,15 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
                 ScpHeroData(
                   value: '${scoped.length}',
                   label: widget.isBk
-                      ? 'Izin menunggu verifikasi (Semua Kelas)'
+                      ? 'Izin menunggu pemantauan (Semua Kelas)'
                       : 'Izin menunggu (Kelas ${widget.user.className ?? ""})',
                   footerTitle: name,
                   footerSubtitle: widget.isBk
                       ? 'Bimbingan & Konseling Siswa'
                       : 'Wali Kelas ${widget.user.className ?? ""}',
-                  gradient: widget.isBk ? ScpColors.purpleGradient : ScpColors.tealGradient,
+                  gradient: widget.isBk
+                      ? ScpColors.purpleGradient
+                      : ScpColors.tealGradient,
                   icon: Icons.verified_user_outlined,
                 ),
                 ScpHeroData(
@@ -162,21 +170,21 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
                   ),
                   ScpQuickActionItem(
                     icon: Icons.fact_check_rounded,
-                    title: 'Verifikasi\nIzin Siswa',
+                    title: 'Monitoring\nIzin Siswa',
                     color: ScpColors.amber,
                     bg: ScpColors.amberCard,
                     onTap: () => widget.onNavigateTab?.call(2),
                   ),
                   ScpQuickActionItem(
-                    icon: Icons.menu_book_rounded,
-                    title: 'Jurnal\nMengajar',
+                    icon: Icons.edit_note_rounded,
+                    title: 'Jurnal\n(Opsional)',
                     color: ScpColors.blue,
                     bg: ScpColors.blueLight,
                     onTap: () => widget.onNavigateTab?.call(3),
                   ),
                   ScpQuickActionItem(
-                    icon: Icons.calendar_month_rounded,
-                    title: 'Rekap\nKBM',
+                    icon: Icons.event_note_rounded,
+                    title: 'Jadwal\nMengajar',
                     color: ScpColors.teal,
                     bg: ScpColors.tealCard,
                     onTap: () => widget.onNavigateTab?.call(4),
@@ -219,10 +227,7 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
             const SizedBox(height: 20),
 
             // Stat Cards
-            ScpSectionHeader(
-              title: 'Ringkasan Antrian',
-              chip: todayLabel(),
-            ),
+            ScpSectionHeader(title: 'Ringkasan Antrian', chip: todayLabel()),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -233,7 +238,8 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
                     background: ScpColors.amberCard,
                     valueColor: ScpColors.amber,
                     icon: Icons.hourglass_top_rounded,
-                    onTap: () => widget.onNavigateTab?.call(widget.isBk ? 2 : 1),
+                    onTap: () =>
+                        widget.onNavigateTab?.call(widget.isBk ? 2 : 1),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -244,7 +250,8 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
                     background: ScpColors.greenCard,
                     valueColor: ScpColors.green,
                     icon: Icons.assignment_turned_in_rounded,
-                    onTap: () => widget.onNavigateTab?.call(widget.isBk ? 2 : 1),
+                    onTap: () =>
+                        widget.onNavigateTab?.call(widget.isBk ? 2 : 1),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -255,7 +262,8 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
                     background: ScpColors.redCard,
                     valueColor: ScpColors.red,
                     icon: Icons.error_outline_rounded,
-                    onTap: () => widget.onNavigateTab?.call(widget.isBk ? 2 : 1),
+                    onTap: () =>
+                        widget.onNavigateTab?.call(widget.isBk ? 2 : 1),
                   ),
                 ),
               ],
@@ -275,8 +283,12 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
                 ),
                 const Spacer(),
                 TextButton(
-                  onPressed: () => widget.onNavigateTab?.call(widget.isBk ? 2 : 1),
-                  child: const Text('Lihat Semua', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  onPressed: () =>
+                      widget.onNavigateTab?.call(widget.isBk ? 2 : 1),
+                  child: const Text(
+                    'Lihat Semua',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
                 ),
               ],
             ),

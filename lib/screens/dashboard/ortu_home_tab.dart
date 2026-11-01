@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../config/api_config.dart';
 import '../../models/user_model.dart';
 import '../../services/api_service.dart';
@@ -12,11 +13,7 @@ class OrtuHomeTab extends StatefulWidget {
   final UserModel user;
   final ValueChanged<int>? onNavigateTab;
 
-  const OrtuHomeTab({
-    super.key,
-    required this.user,
-    this.onNavigateTab,
-  });
+  const OrtuHomeTab({super.key, required this.user, this.onNavigateTab});
 
   @override
   State<OrtuHomeTab> createState() => _OrtuHomeTabState();
@@ -73,7 +70,9 @@ class _OrtuHomeTabState extends State<OrtuHomeTab> {
 
   int _countStatus(String status) {
     return _leaves.where((item) {
-      final value = (item['status_approval'] ?? item['status'] ?? 'Pending').toString();
+      if (item['cancelled_at'] != null) return false;
+      final value = (item['status_approval'] ?? item['status'] ?? 'Pending')
+          .toString();
       return value.toLowerCase() == status.toLowerCase();
     }).length;
   }
@@ -86,9 +85,51 @@ class _OrtuHomeTabState extends State<OrtuHomeTab> {
     if (ok == true) _load(silent: true);
   }
 
+  Future<void> _cancelLeave(Map<String, dynamic> item) async {
+    final id = int.tryParse('${item['id']}');
+    if (id == null || id <= 0) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Batalkan pengajuan izin?'),
+        content: const Text(
+          'Pengajuan yang dibatalkan tidak dapat diproses lagi.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Kembali'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Batalkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final result = await _api.post(ApiConfig.cancelLeave(id), {});
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['success'] == true
+              ? 'Pengajuan berhasil dibatalkan.'
+              : result['message']?.toString() ?? 'Gagal membatalkan pengajuan.',
+        ),
+      ),
+    );
+    if (result['success'] == true) {
+      LiveRefresh.pingLeaves();
+      await _load(silent: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final name = widget.user.fullname.isEmpty ? 'Orang Tua' : widget.user.fullname;
+    final name = widget.user.fullname.isEmpty
+        ? 'Orang Tua'
+        : widget.user.fullname;
     final approved = _countStatus('Approved');
     final pending = _countStatus('Pending');
     final childName = _children.isEmpty
@@ -112,7 +153,9 @@ class _OrtuHomeTabState extends State<OrtuHomeTab> {
           if (_loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 48),
-              child: Center(child: CircularProgressIndicator(color: ScpColors.blue)),
+              child: Center(
+                child: CircularProgressIndicator(color: ScpColors.blue),
+              ),
             )
           else ...[
             ScpHeroPager(
@@ -209,7 +252,10 @@ class _OrtuHomeTabState extends State<OrtuHomeTab> {
                 const Spacer(),
                 TextButton(
                   onPressed: () => widget.onNavigateTab?.call(1),
-                  child: const Text('Detail Anak', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  child: const Text(
+                    'Detail Anak',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
                 ),
               ],
             ),
@@ -237,8 +283,14 @@ class _OrtuHomeTabState extends State<OrtuHomeTab> {
                     children: [
                       CircleAvatar(
                         radius: 20,
-                        backgroundColor: ScpColors.amber.withValues(alpha: 0.15),
-                        child: const Icon(Icons.school_rounded, color: ScpColors.amber, size: 20),
+                        backgroundColor: ScpColors.amber.withValues(
+                          alpha: 0.15,
+                        ),
+                        child: const Icon(
+                          Icons.school_rounded,
+                          color: ScpColors.amber,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -247,12 +299,18 @@ class _OrtuHomeTabState extends State<OrtuHomeTab> {
                           children: [
                             Text(
                               child['fullname']?.toString() ?? 'Anak',
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               'Kelas: ${child['class']?['class_name'] ?? child['class_name'] ?? "-"} • NISN/Username: ${child['username'] ?? "-"}',
-                              style: const TextStyle(color: ScpColors.muted, fontSize: 12),
+                              style: const TextStyle(
+                                color: ScpColors.muted,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
@@ -276,28 +334,56 @@ class _OrtuHomeTabState extends State<OrtuHomeTab> {
                 ),
               )
             else
-              for (var i = 0; i < _leaves.length && i < 5; i++)
-                _leaveRow(_leaves[i], i),
+              for (var i = 0; i < _leaves.length; i++) _leaveRow(_leaves[i]),
           ],
         ],
       ),
     );
   }
 
-  Widget _leaveRow(Map<String, dynamic> item, int index) {
-    final palette = activityPalette[index % activityPalette.length];
-    final status = (item['status_approval'] ?? item['status'] ?? 'Pending').toString();
+  Widget _leaveRow(Map<String, dynamic> item) {
+    final status = (item['status_approval'] ?? item['status'] ?? 'Pending')
+        .toString();
     final student = item['student']?['fullname']?.toString() ?? 'Anak';
     final start = formatShortDate((item['start_date'] ?? '').toString());
     final reason = item['reason']?.toString() ?? '-';
-    return ScpActivityTile(
-      icon: palette.icon,
-      iconBg: palette.bg,
-      iconColor: palette.fg,
-      title: '$student  •  $reason',
-      subtitle: 'Tanggal mulai: $start',
-      trailing: _label(status),
-      trailingColor: _color(status),
+    final leaveType = item['leave_type']?.toString() ?? 'Izin';
+    final cancelled = item['cancelled_at'] != null;
+    final canCancel = !cancelled && status.toLowerCase() == 'pending';
+    final rejection = item['rejection_reason']?.toString();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$student • $leaveType • ${cancelled ? 'Dibatalkan' : _label(status)}',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: cancelled ? ScpColors.muted : _color(status),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text('Tanggal mulai: $start • $reason'),
+            if (rejection != null && rejection.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('Alasan penolakan: $rejection'),
+              ),
+            if (canCancel)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => _cancelLeave(item),
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: const Text('Batalkan pengajuan'),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 

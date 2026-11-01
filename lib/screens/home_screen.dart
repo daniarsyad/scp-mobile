@@ -14,6 +14,7 @@ import 'attendance_report_screen.dart';
 import 'guru/create_journal_screen.dart';
 import 'guru/kbm_recap_screen.dart';
 import 'guru/my_journals_screen.dart';
+import 'guru/journal_monitor_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'schedules/role_schedule_screen.dart';
@@ -83,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           },
         ),
-        const KbmRecapScreen(embedded: true),
+        KbmRecapScreen(embedded: true, ownerId: user.id),
         const MyJournalsScreen(),
         RoleScheduleScreen(user: user, embedded: true),
         ProfileScreen(user: user, embedded: true),
@@ -106,10 +107,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (user.isWaliKelas) {
       return [
-        VerifikatorHomeTab(
+        GuruHomeTab(
           user: user,
-          isBk: false,
           onNavigateTab: _navigateToTab,
+          recapTabIndex: 4,
+          onNextSchedule: (schedule) {
+            if (mounted && _nextSchedule?['id'] != schedule?['id']) {
+              setState(() => _nextSchedule = schedule);
+            }
+          },
         ),
         PendingLeavesScreen(
           targetClass: user.className,
@@ -118,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const MyJournalsScreen(),
         AttendanceReportScreen(isBk: false, user: user, embedded: true),
-        const KbmRecapScreen(embedded: true),
+        KbmRecapScreen(embedded: true, ownerId: user.id),
         RoleScheduleScreen(user: user, embedded: true),
         ProfileScreen(user: user, embedded: true),
       ];
@@ -132,8 +138,25 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         AttendanceReportScreen(isBk: true, user: user, embedded: true),
         const PendingLeavesScreen(isBk: true, embedded: true),
+        GuruHomeTab(
+          user: user,
+          onNavigateTab: _navigateToTab,
+          showRecapAction: false,
+          journalTabIndex: 5,
+          onNextSchedule: (schedule) {
+            if (mounted && _nextSchedule?['id'] != schedule?['id']) {
+              setState(() => _nextSchedule = schedule);
+            }
+          },
+        ),
+        RoleScheduleScreen(user: user, embedded: true),
         const MyJournalsScreen(),
-        const KbmRecapScreen(embedded: true),
+        ProfileScreen(user: user, embedded: true),
+      ];
+    }
+    if (user.canMonitorJournals) {
+      return [
+        JournalMonitorScreen(user: user, embedded: true),
         ProfileScreen(user: user, embedded: true),
       ];
     }
@@ -182,10 +205,14 @@ class _HomeScreenState extends State<HomeScreen> {
       return const [
         ScpNavItem(Icons.home_rounded, 'Home'),
         ScpNavItem(Icons.assessment_outlined, 'Laporan'),
-        ScpNavItem(Icons.fact_check_outlined, 'Verifikasi'),
-        ScpNavItem(Icons.menu_book_rounded, 'Jurnal'),
-        ScpNavItem(Icons.calendar_month_rounded, 'KBM'),
+        ScpNavItem(Icons.fact_check_outlined, 'Monitoring Izin'),
+        ScpNavItem(Icons.edit_note_rounded, 'Jurnal (Opsional)'),
+        ScpNavItem(Icons.event_note_rounded, 'Jadwal Mengajar'),
+        ScpNavItem(Icons.menu_book_rounded, 'Riwayat Jurnal'),
       ];
+    }
+    if (user.canMonitorJournals) {
+      return const [ScpNavItem(Icons.fact_check_outlined, 'Monitoring Jurnal')];
     }
     return const [ScpNavItem(Icons.home_rounded, 'Home')];
   }
@@ -384,24 +411,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (selectedIndex == 0) ...[
                     const SchoolLogo(size: 36),
                     const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'SCP School',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'SCP School',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'SMKN 1 Bantul • ${user.roleName ?? 'Pengguna'}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                          Text(
+                            'SMKN 1 Bantul • ${user.roleName ?? 'Pengguna'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ] else ...[
                     const SchoolLogo(size: 30),
@@ -470,14 +503,19 @@ class _HomeScreenState extends State<HomeScreen> {
           : null,
       body: IndexedStack(index: selectedIndex, children: pages),
       floatingActionButton:
-          (widget.user.isGuru || widget.user.isWaliKelas) &&
+          (widget.user.isGuru ||
+                  widget.user.isWaliKelas ||
+                  widget.user.isGuruBK) &&
               _nextSchedule != null
           ? FloatingActionButton.extended(
               tooltip: 'Isi Jurnal Mengajar',
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => CreateJournalScreen(schedule: _nextSchedule!),
+                  builder: (_) => CreateJournalScreen(
+                    schedule: _nextSchedule!,
+                    ownerId: widget.user.id,
+                  ),
                 ),
               ),
               backgroundColor: ScpColors.blue,

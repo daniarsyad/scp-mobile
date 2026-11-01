@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../../config/api_config.dart';
 import '../../services/api_service.dart';
+import '../../utils/live_refresh.dart';
 
 class MyLeavesScreen extends StatefulWidget {
   const MyLeavesScreen({super.key});
@@ -14,7 +16,7 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
   bool _loading = true;
   String? _error;
   List<dynamic> _leaves = [];
-  
+
   final Color primaryColor = const Color(0xFF5B67CA);
   final Color bgColor = const Color(0xFFF8F9FE);
 
@@ -31,6 +33,7 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
     });
 
     final result = await _api.get(ApiConfig.myLeaveRequests);
+    if (!mounted) return;
 
     setState(() {
       _loading = false;
@@ -43,26 +46,80 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
     });
   }
 
+  Future<void> _cancel(Map item) async {
+    final id = int.tryParse('${item['id']}');
+    if (id == null || id <= 0) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Batalkan pengajuan izin?'),
+        content: const Text(
+          'Pengajuan yang dibatalkan tidak dapat diproses lagi.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Kembali'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Batalkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final result = await _api.post(ApiConfig.cancelLeave(id), {});
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['success'] == true
+              ? 'Pengajuan berhasil dibatalkan.'
+              : result['message']?.toString() ?? 'Gagal membatalkan pengajuan.',
+        ),
+      ),
+    );
+    if (result['success'] == true) {
+      LiveRefresh.pingLeaves();
+      await _load();
+    }
+  }
+
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'approved':
         return Colors.green;
       case 'rejected':
         return Colors.red;
+      case 'cancelled':
+      case 'canceled':
+        return Colors.grey;
       default:
         return Colors.orange;
     }
   }
-  
-  IconData _statusIcon(String status) {
+
+  String _statusLabel(Map item) {
+    if (item['cancelled_at'] != null) return 'Dibatalkan';
+    final status = (item['status_approval'] ?? item['status'] ?? 'Pending')
+        .toString();
     switch (status.toLowerCase()) {
       case 'approved':
-        return Icons.check_circle;
+        return 'Disetujui';
       case 'rejected':
-        return Icons.cancel;
+        return 'Ditolak';
       default:
-        return Icons.pending;
+        return 'Menunggu';
     }
+  }
+
+  bool _canCancel(Map item) {
+    final status = (item['status_approval'] ?? item['status'] ?? 'Pending')
+        .toString()
+        .toLowerCase();
+    return item['cancelled_at'] == null && status == 'pending';
   }
 
   @override
@@ -73,7 +130,6 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Custom Header
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 10),
               child: Row(
@@ -94,96 +150,108 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
                 ],
               ),
             ),
-            
             Expanded(
               child: _loading
-                  ? Center(child: CircularProgressIndicator(color: primaryColor))
+                  ? Center(
+                      child: CircularProgressIndicator(color: primaryColor),
+                    )
                   : _error != null
-                      ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
-                      : _leaves.isEmpty
-                          ? const Center(child: Text('Belum ada pengajuan izin', style: TextStyle(color: Colors.grey)))
-                          : RefreshIndicator(
-                              onRefresh: _load,
-                              color: primaryColor,
-                              child: ListView.builder(
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                                itemCount: _leaves.length,
-                                itemBuilder: (context, index) {
-                                  final item = _leaves[index];
-                                  final status = (item['status_approval'] ?? item['status'] ?? 'Pending').toString();
-                                  final reason = item['reason'] ?? '-';
-                                  final start = (item['start_date'] ?? '').toString();
-                                  final end = (item['end_date'] ?? '').toString();
-                                  final startShort = start.length >= 10 ? start.substring(0, 10) : start;
-                                  final endShort = end.length >= 10 ? end.substring(0, 10) : end;
+                  ? Center(
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    )
+                  : _leaves.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Belum ada pengajuan izin',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      color: primaryColor,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 10,
+                        ),
+                        itemCount: _leaves.length,
+                        itemBuilder: (context, index) {
+                          final item = _leaves[index] as Map;
+                          final status = _statusLabel(item);
+                          final reason = item['reason']?.toString() ?? '-';
+                          final leaveType =
+                              item['leave_type']?.toString() ?? 'Izin';
+                          final start = (item['start_date'] ?? '').toString();
+                          final end = (item['end_date'] ?? '').toString();
+                          final startShort = start.length >= 10
+                              ? start.substring(0, 10)
+                              : start;
+                          final endShort = end.length >= 10
+                              ? end.substring(0, 10)
+                              : end;
+                          final rejectionReason = item['rejection_reason']
+                              ?.toString();
 
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 16),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(20),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.03),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '$startShort s/d $endShort',
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
-                                      ],
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(16.0),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(12),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF3E5F5),
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            child: const Icon(Icons.list_alt, color: Color(0xFF9C27B0), size: 28),
-                                          ),
-                                          const SizedBox(width: 16),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  '$startShort s/d $endShort',
-                                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E)),
-                                                ),
-                                                const SizedBox(height: 6),
-                                                Text(
-                                                  reason,
-                                                  style: const TextStyle(fontSize: 13, color: Colors.grey),
-                                                  maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(_statusIcon(status), color: _statusColor(status), size: 24),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                status,
-                                                style: TextStyle(
-                                                  color: _statusColor(status),
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 11,
-                                                ),
-                                              ),
-                                            ],
-                                          )
-                                        ],
+                                      ),
+                                      Text(
+                                        status,
+                                        style: TextStyle(
+                                          color: _statusColor(status),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text('Jenis: $leaveType'),
+                                  Text(reason),
+                                  if (rejectionReason != null &&
+                                      rejectionReason.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Text(
+                                        'Alasan penolakan: $rejectionReason',
+                                        style: const TextStyle(
+                                          color: Colors.red,
+                                        ),
                                       ),
                                     ),
-                                  );
-                                },
+                                  if (_canCancel(item))
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton.icon(
+                                        onPressed: () => _cancel(item),
+                                        icon: const Icon(Icons.cancel_outlined),
+                                        label: const Text('Batalkan pengajuan'),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
+                          );
+                        },
+                      ),
+                    ),
             ),
           ],
         ),

@@ -59,4 +59,6 @@ class UserModel {
   bool get isSiswa => _roleKey == 'siswa';
   bool get isGuru => _roleKey == 'guru';
   bool get isWaka => _roleKey == 'wakakurikulum';
+  bool get isKepalaSekolah => _roleKey == 'kepalasekolah';
+  bool get canMonitorJournals => isWaka || isKepalaSekolah;
 }

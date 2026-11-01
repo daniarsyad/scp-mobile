@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../config/api_config.dart';
 import '../../utils/live_refresh.dart';
 
@@ -19,6 +21,7 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
   final _picker = ImagePicker();
   DateTime? _startDate;
   DateTime? _endDate;
+  String _leaveType = 'Izin';
   XFile? _document;
   Uint8List? _docBytes;
   bool _loading = false;
@@ -87,15 +90,21 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
       request.headers['Authorization'] = 'Bearer $token';
       request.headers['Accept'] = 'application/json';
 
-      request.fields['start_date'] = _startDate!.toIso8601String().substring(0, 10);
+      request.fields['start_date'] = _startDate!.toIso8601String().substring(
+        0,
+        10,
+      );
       request.fields['end_date'] = _endDate!.toIso8601String().substring(0, 10);
       request.fields['reason'] = _reasonController.text.trim();
+      request.fields['leave_type'] = _leaveType;
 
-      request.files.add(http.MultipartFile.fromBytes(
-        'document',
-        _docBytes!,
-        filename: 'surat_${DateTime.now().millisecondsSinceEpoch}.jpg',
-      ));
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'document',
+          _docBytes!,
+          filename: 'surat_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        ),
+      );
 
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
@@ -108,7 +117,10 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
         if (!mounted) return;
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Pengajuan izin berhasil'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('Pengajuan izin berhasil'),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pop(context, true);
       } else {
@@ -140,36 +152,67 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Tanggal Mulai', style: TextStyle(fontWeight: FontWeight.w500)),
+            const Text(
+              'Tanggal Mulai',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
             const SizedBox(height: 6),
             InkWell(
               onTap: () => _pickDate(true),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(_startDate != null
-                    ? '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}'
-                    : 'Pilih tanggal'),
+                child: Text(
+                  _startDate != null
+                      ? '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}'
+                      : 'Pilih tanggal',
+                ),
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Tanggal Selesai', style: TextStyle(fontWeight: FontWeight.w500)),
+            const Text(
+              'Tanggal Selesai',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
             const SizedBox(height: 6),
             InkWell(
               onTap: () => _pickDate(false),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(_endDate != null
-                    ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
-                    : 'Pilih tanggal'),
+                child: Text(
+                  _endDate != null
+                      ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
+                      : 'Pilih tanggal',
+                ),
               ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _leaveType,
+              decoration: const InputDecoration(
+                labelText: 'Jenis izin',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'Izin', child: Text('Izin')),
+                DropdownMenuItem(value: 'Sakit', child: Text('Sakit')),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => _leaveType = value);
+              },
             ),
             const SizedBox(height: 16),
             const Text('Alasan', style: TextStyle(fontWeight: FontWeight.w500)),
@@ -183,7 +226,10 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Foto Surat Dokter', style: TextStyle(fontWeight: FontWeight.w500)),
+            const Text(
+              'Foto Surat Dokter',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
             const SizedBox(height: 6),
             Row(
               children: [
@@ -226,7 +272,14 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 child: _loading
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Text('Ajukan Izin'),
               ),
             ),

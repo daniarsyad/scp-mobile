@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_saver/file_saver.dart';
 
 import '../config/api_config.dart';
 import '../models/user_model.dart';
@@ -30,6 +31,11 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   String? _error;
   List<Map<String, dynamic>> _attendances = [];
   List<Map<String, dynamic>> _classList = [];
+  Map<String, dynamic> _summary = {};
+  List<Map<String, dynamic>> _studentSummary = [];
+  bool _monthly = false;
+  bool _exporting = false;
+  String _selectedPeriodId = '';
 
   // Filter states
   String _selectedClass = 'Semua Kelas';
@@ -42,7 +48,8 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       '${_date.month.toString().padLeft(2, '0')}-'
       '${_date.day.toString().padLeft(2, '0')}';
 
-  bool get _isWaliKelasOnly => !widget.isBk || (widget.user != null && widget.user!.isWaliKelas);
+  bool get _isWaliKelasOnly =>
+      !widget.isBk || (widget.user != null && widget.user!.isWaliKelas);
 
   String? get _waliClassName {
     final name = widget.user?.className;
@@ -84,9 +91,10 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       _error = null;
     });
 
+    final params = _reportParams();
     final path = Uri(
       path: ApiConfig.attendanceReport,
-      queryParameters: {'date': _dateValue},
+      queryParameters: params,
     ).toString();
 
     final result = await _api.get(path);
@@ -95,13 +103,101 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     if (result['success'] == true) {
       setState(() {
         _loading = false;
-        _attendances = asList(result['data']).map(asMap).toList();
+        final data = result['data'];
+        final nestedData = asMap(data);
+        _attendances = asList(
+          data is Map ? data['attendances'] ?? data['data'] : data,
+        ).map(asMap).toList();
+        _summary = asMap(result['summary']).isNotEmpty
+            ? asMap(result['summary'])
+            : asMap(nestedData['summary']);
+        _studentSummary = asList(
+          result['student_summary'] ?? nestedData['student_summary'],
+        ).map(asMap).toList();
+        final availablePeriodIds = _getAvailablePeriods()
+            .map((period) => period.id)
+            .toSet();
+        if (!availablePeriodIds.contains(_selectedPeriodId)) {
+          _selectedPeriodId = '';
+        }
       });
     } else {
       setState(() {
         _loading = false;
-        _error = result['message']?.toString() ?? 'Gagal memuat laporan presensi';
+        _error =
+            result['message']?.toString() ?? 'Gagal memuat laporan presensi';
       });
+    }
+  }
+
+  Map<String, String> _reportParams() {
+    final params = <String, String>{
+      if (_monthly)
+        'month':
+            '${_date.year.toString().padLeft(4, '0')}-'
+            '${_date.month.toString().padLeft(2, '0')}'
+      else
+        'date': _dateValue,
+    };
+    if (!_isWaliKelasOnly && _selectedClass != 'Semua Kelas') {
+      for (final item in _classList) {
+        if (item['class_name']?.toString() == _selectedClass &&
+            item['id'] != null) {
+          params['class_id'] = item['id'].toString();
+          break;
+        }
+      }
+    }
+    if (_selectedPeriodId.isNotEmpty) {
+      params['period_id'] = _selectedPeriodId;
+    }
+    return params;
+  }
+
+  Future<void> _exportReport() async {
+    setState(() => _exporting = true);
+    try {
+      final response = await _api.download(
+        Uri(
+          path: ApiConfig.attendanceReportExport,
+          queryParameters: _reportParams(),
+        ).toString(),
+      );
+      if (!mounted) return;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw StateError(
+          'Export gagal (${response.statusCode}): ${response.body}',
+        );
+      }
+      if (response.bodyBytes.isEmpty) {
+        throw StateError('File ekspor yang diterima kosong.');
+      }
+      final filename = _monthly
+          ? 'rekap-presensi-${_date.year}-${_date.month.toString().padLeft(2, '0')}'
+          : 'rekap-presensi-$_dateValue';
+      final savedPath = await FileSaver.instance.saveAs(
+        name: filename,
+        bytes: response.bodyBytes,
+        fileExtension: 'xlsx',
+        mimeType: MimeType.microsoftExcel,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            savedPath == null
+                ? 'Unduhan dibatalkan.'
+                : 'File XLSX berhasil disimpan.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengunduh laporan: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
     }
   }
 
@@ -168,7 +264,8 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     final fromSchedule = asMap(schedule['class'])['class_name']?.toString();
     if (fromSchedule != null && fromSchedule.isNotEmpty) return fromSchedule;
 
-    final fromStudent = asMap(student['class'])['class_name']?.toString() ??
+    final fromStudent =
+        asMap(student['class'])['class_name']?.toString() ??
         student['class_name']?.toString();
     if (fromStudent != null && fromStudent.isNotEmpty) return fromStudent;
 
@@ -204,8 +301,13 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
       // 4. Search query
       if (_searchQuery.isNotEmpty) {
-        final studentName = asMap(item['student'])['fullname']?.toString().toLowerCase() ?? '';
-        final subject = asMap(asMap(item['journal'])['schedule'])['subject']?.toString().toLowerCase() ?? '';
+        final studentName =
+            asMap(item['student'])['fullname']?.toString().toLowerCase() ?? '';
+        final subject =
+            asMap(
+              asMap(item['journal'])['schedule'],
+            )['subject']?.toString().toLowerCase() ??
+            '';
         final q = _searchQuery.toLowerCase();
         if (!studentName.contains(q) && !subject.contains(q)) {
           return false;
@@ -251,18 +353,28 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     final filtered = _filteredAttendances();
 
     // Calculate count stats based on active filtered list
-    final counts = <String, int>{
-      'Hadir': 0,
-      'Izin': 0,
-      'Sakit': 0,
-      'Alpha': 0,
-    };
+    final counts = <String, int>{'Hadir': 0, 'Izin': 0, 'Sakit': 0, 'Alpha': 0};
     for (final item in filtered) {
       final status = item['status']?.toString() ?? '';
       for (final key in counts.keys) {
         if (status.toLowerCase() == key.toLowerCase()) {
           counts[key] = counts[key]! + 1;
         }
+      }
+    }
+    final serverCounts = asMap(_summary['status_counts']);
+    if (_selectedStatus == 'Semua Status' &&
+        _selectedClass == 'Semua Kelas' &&
+        _searchQuery.isEmpty &&
+        _selectedPeriodId.isEmpty) {
+      for (final status in counts.keys) {
+        final value =
+            _summary[status.toLowerCase()] ??
+            _summary[status] ??
+            serverCounts[status.toLowerCase()] ??
+            serverCounts[status];
+        final parsed = int.tryParse('$value');
+        if (parsed != null) counts[status] = parsed;
       }
     }
 
@@ -283,6 +395,39 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 100),
         children: [
+          Row(
+            children: [
+              ChoiceChip(
+                label: const Text('Harian'),
+                selected: !_monthly,
+                onSelected: (_) {
+                  setState(() => _monthly = false);
+                  _load();
+                },
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Bulanan'),
+                selected: _monthly,
+                onSelected: (_) {
+                  setState(() => _monthly = true);
+                  _load();
+                },
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: _exporting ? null : _exportReport,
+                icon: _exporting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_outlined),
+                label: const Text('XLSX'),
+              ),
+            ],
+          ),
           // Banner Info
           if (_isWaliKelasOnly)
             Container(
@@ -421,8 +566,8 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Tanggal Laporan',
+                        Text(
+                          _monthly ? 'Bulan Laporan' : 'Tanggal Laporan',
                           style: TextStyle(
                             color: ScpColors.muted,
                             fontSize: 11,
@@ -431,7 +576,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                         ),
                         const SizedBox(height: 1),
                         Text(
-                          _displayDate(),
+                          _monthly
+                              ? '${_date.year}-${_date.month.toString().padLeft(2, '0')}'
+                              : _displayDate(),
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
@@ -442,7 +589,10 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: ScpColors.surfaceAlt,
                       borderRadius: BorderRadius.circular(20),
@@ -450,7 +600,11 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.edit_calendar_outlined, size: 14, color: ScpColors.muted),
+                        Icon(
+                          Icons.edit_calendar_outlined,
+                          size: 14,
+                          color: ScpColors.muted,
+                        ),
                         SizedBox(width: 4),
                         Text(
                           'Ganti',
@@ -483,7 +637,11 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.tune_rounded, size: 18, color: ScpColors.blue),
+                      const Icon(
+                        Icons.tune_rounded,
+                        size: 18,
+                        color: ScpColors.blue,
+                      ),
                       const SizedBox(width: 8),
                       const Text(
                         'Filter Laporan Kelas & Status',
@@ -502,9 +660,11 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                             setState(() {
                               _selectedClass = 'Semua Kelas';
                               _selectedStatus = 'Semua Status';
+                              _selectedPeriodId = '';
                               _searchController.clear();
                               _searchQuery = '';
                             });
+                            _load();
                           },
                           child: const Text(
                             'Reset Filter',
@@ -524,8 +684,13 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                     decoration: InputDecoration(
                       labelText: 'Pilih Kelas',
                       labelStyle: const TextStyle(fontSize: 12),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
@@ -537,25 +702,61 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                             value: c,
                             child: Text(
                               c,
-                              style: const TextStyle(fontSize: 13, color: ScpColors.text),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: ScpColors.text,
+                              ),
                             ),
                           );
                         }).toList(),
                         onChanged: (val) {
-                          if (val != null) setState(() => _selectedClass = val);
+                          if (val != null) {
+                            setState(() => _selectedClass = val);
+                            _load();
+                          }
                         },
                       ),
                     ),
                   ),
                   const SizedBox(height: 10),
 
+                  if (_getAvailablePeriods().isNotEmpty) ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedPeriodId,
+                      decoration: const InputDecoration(
+                        labelText: 'Periode KBM',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: '',
+                          child: Text('Semua periode'),
+                        ),
+                        for (final period in _getAvailablePeriods())
+                          DropdownMenuItem(
+                            value: period.id,
+                            child: Text(period.name),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        setState(() => _selectedPeriodId = value ?? '');
+                        _load();
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+
                   // Search Bar
                   TextField(
                     controller: _searchController,
-                    onChanged: (val) => setState(() => _searchQuery = val.trim()),
+                    onChanged: (val) =>
+                        setState(() => _searchQuery = val.trim()),
                     decoration: InputDecoration(
                       hintText: 'Cari nama siswa atau mapel...',
-                      hintStyle: const TextStyle(fontSize: 12, color: ScpColors.muted),
+                      hintStyle: const TextStyle(
+                        fontSize: 12,
+                        color: ScpColors.muted,
+                      ),
                       prefixIcon: const Icon(Icons.search_rounded, size: 18),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
@@ -566,8 +767,13 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                               },
                             )
                           : null,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -576,39 +782,44 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
-                      children: [
-                        'Semua Status',
-                        'Hadir',
-                        'Izin',
-                        'Sakit',
-                        'Alpha',
-                      ].map((status) {
-                        final isSelected = _selectedStatus == status;
-                        final color = status == 'Semua Status'
-                            ? ScpColors.blue
-                            : _statusColor(status);
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: ChoiceChip(
-                            label: Text(status),
-                            labelStyle: TextStyle(
-                              fontSize: 11,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              color: isSelected ? Colors.white : ScpColors.text,
-                            ),
-                            selected: isSelected,
-                            selectedColor: color,
-                            backgroundColor: ScpColors.surfaceAlt,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            showCheckmark: false,
-                            onSelected: (_) {
-                              setState(() => _selectedStatus = status);
-                            },
-                          ),
-                        );
-                      }).toList(),
+                      children:
+                          [
+                            'Semua Status',
+                            'Hadir',
+                            'Izin',
+                            'Sakit',
+                            'Alpha',
+                          ].map((status) {
+                            final isSelected = _selectedStatus == status;
+                            final color = status == 'Semua Status'
+                                ? ScpColors.blue
+                                : _statusColor(status);
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: ChoiceChip(
+                                label: Text(status),
+                                labelStyle: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : ScpColors.text,
+                                ),
+                                selected: isSelected,
+                                selectedColor: color,
+                                backgroundColor: ScpColors.surfaceAlt,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                showCheckmark: false,
+                                onSelected: (_) {
+                                  setState(() => _selectedStatus = status);
+                                },
+                              ),
+                            );
+                          }).toList(),
                     ),
                   ),
                 ],
@@ -618,6 +829,32 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           ],
 
           // Stat Cards Summary
+          if (_summary.isNotEmpty) ...[
+            Row(
+              children: [
+                _statCard(
+                  'Total Siswa',
+                  _summaryInt(['total_students', 'total_siswa', 'total']),
+                  ScpColors.blueLight,
+                  ScpColors.blue,
+                  Icons.groups_outlined,
+                ),
+                const SizedBox(width: 8),
+                _statCard(
+                  'Hadir (%)',
+                  _summaryInt([
+                    'attendance_percentage',
+                    'present_percentage',
+                    'persentase_hadir',
+                  ]),
+                  ScpColors.greenCard,
+                  ScpColors.green,
+                  Icons.percent_rounded,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
           Row(
             children: [
               _statCard(
@@ -654,6 +891,19 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
             ],
           ),
           const SizedBox(height: 20),
+          if (_studentSummary.isNotEmpty) ...[
+            const Text(
+              'Rekap per Siswa',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: ScpColors.text,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final student in _studentSummary) _studentSummaryTile(student),
+            const SizedBox(height: 12),
+          ],
 
           // Header List
           Row(
@@ -686,7 +936,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           if (_loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: CircularProgressIndicator(color: ScpColors.blue)),
+              child: Center(
+                child: CircularProgressIndicator(color: ScpColors.blue),
+              ),
             )
           else if (_error != null)
             ScpEmpty(message: _error!, icon: Icons.cloud_off_outlined)
@@ -726,7 +978,10 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                       ),
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: ScpColors.surfaceAlt,
                           borderRadius: BorderRadius.circular(10),
@@ -751,7 +1006,71 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     );
   }
 
-  Widget _statCard(String label, int count, Color background, Color color, IconData icon) {
+  List<({String id, String name})> _getAvailablePeriods() {
+    final periods = <String, String>{};
+    for (final item in _attendances) {
+      final schedule = asMap(asMap(item['journal'])['schedule']);
+      final period = asMap(schedule['period']);
+      final id = (period['id'] ?? schedule['period_id'])?.toString();
+      if (id == null || id.isEmpty) continue;
+      final name =
+          period['name']?.toString() ??
+          period['period_name']?.toString() ??
+          schedule['period_name']?.toString() ??
+          'Periode $id';
+      periods[id] = name;
+    }
+    return periods.entries
+        .map((entry) => (id: entry.key, name: entry.value))
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  int _summaryInt(List<String> keys) {
+    for (final key in keys) {
+      final value = _summary[key];
+      final parsed = int.tryParse('$value');
+      if (parsed != null) return parsed;
+      final decimal = double.tryParse('$value');
+      if (decimal != null) return decimal.round();
+    }
+    return 0;
+  }
+
+  Widget _studentSummaryTile(Map<String, dynamic> student) {
+    final name =
+        student['fullname']?.toString() ??
+        student['student_name']?.toString() ??
+        student['name']?.toString() ??
+        'Siswa';
+    final present =
+        student['hadir'] ?? student['present'] ?? student['present_count'];
+    final leave = student['izin'] ?? student['leave'] ?? student['leave_count'];
+    final sick = student['sakit'] ?? student['sick'] ?? student['sick_count'];
+    final absent =
+        student['alpha'] ?? student['absent'] ?? student['alpha_count'];
+    final consecutive =
+        student['consecutive_alpha'] ??
+        student['consecutive_absences'] ??
+        student['alpha_streak'];
+    return Card(
+      child: ListTile(
+        title: Text(name),
+        subtitle: Text(
+          'Hadir $present • Izin $leave • Sakit $sick • Alpha $absent'
+          '${consecutive == null ? '' : ' • Alpha beruntun $consecutive hari'}',
+        ),
+      ),
+    );
+  }
+
+  Widget _statCard(
+    String label,
+    int count,
+    Color background,
+    Color color,
+    IconData icon,
+  ) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),

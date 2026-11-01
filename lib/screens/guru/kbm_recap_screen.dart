@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../config/api_config.dart';
 import '../../services/api_service.dart';
 import '../../theme/scp_theme.dart';
@@ -10,8 +11,9 @@ import 'create_journal_screen.dart';
 
 class KbmRecapScreen extends StatefulWidget {
   final bool embedded;
+  final int ownerId;
 
-  const KbmRecapScreen({super.key, this.embedded = false});
+  const KbmRecapScreen({super.key, this.embedded = false, this.ownerId = 0});
 
   @override
   State<KbmRecapScreen> createState() => _KbmRecapScreenState();
@@ -89,7 +91,8 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => CreateJournalScreen(schedule: schedule),
+          builder: (_) =>
+              CreateJournalScreen(schedule: schedule, ownerId: widget.ownerId),
         ),
       );
     }
@@ -111,7 +114,9 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
 
   Widget _body() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: ScpColors.blue));
+      return const Center(
+        child: CircularProgressIndicator(color: ScpColors.blue),
+      );
     }
     if (_error != null) {
       return ScpEmpty(message: _error!, icon: Icons.cloud_off_outlined);
@@ -133,8 +138,12 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
     }
     final keys = grouped.keys.toList()
       ..sort((a, b) {
-        final ra = dayNames.indexWhere((d) => d.toLowerCase() == a.toLowerCase());
-        final rb = dayNames.indexWhere((d) => d.toLowerCase() == b.toLowerCase());
+        final ra = dayNames.indexWhere(
+          (d) => d.toLowerCase() == a.toLowerCase(),
+        );
+        final rb = dayNames.indexWhere(
+          (d) => d.toLowerCase() == b.toLowerCase(),
+        );
         return (ra < 0 ? 99 : ra).compareTo(rb < 0 ? 99 : rb);
       });
 
@@ -196,7 +205,9 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
     final start = formatTime(schedule['start_time']);
     final end = formatTime(schedule['end_time']);
     final isToday = day.toLowerCase() == todayDayName().toLowerCase();
-    final done = isToday ? journalFilledToday(schedule) : journalTotal(schedule) > 0;
+    final done = isToday
+        ? journalFilledToday(schedule)
+        : journalTotal(schedule) > 0;
     final total = journalTotal(schedule);
     final subtitle = isToday
         ? '$start-$end  •  $className  •  ${done ? 'Jurnal hari ini terisi' : 'Jurnal belum diisi'}'

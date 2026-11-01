@@ -214,12 +214,6 @@ class ProfileScreen extends StatelessWidget {
   static const _themeOptions =
       <({ThemeMode mode, String label, String description, IconData icon})>[
         (
-          mode: ThemeMode.system,
-          label: 'Ikuti perangkat',
-          description: 'Otomatis mengikuti pengaturan tema perangkat.',
-          icon: Icons.brightness_auto_rounded,
-        ),
-        (
           mode: ThemeMode.light,
           label: 'Siang',
           description: 'Gunakan tampilan terang.',

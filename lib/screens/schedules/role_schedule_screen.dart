@@ -35,7 +35,8 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
   String? _cycleOneError;
   String? _cycleTwoError;
 
-  bool get _isTeacher => widget.child == null && widget.user.isGuru;
+  bool get _isTeacher =>
+      widget.child == null && (widget.user.isGuru || widget.user.isGuruBK);
 
   String get _className {
     final child = widget.child;

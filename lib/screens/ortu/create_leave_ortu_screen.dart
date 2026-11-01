@@ -1,7 +1,9 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../config/api_config.dart';
 import '../../services/api_service.dart';
 
@@ -20,6 +22,7 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
   int? _selectedChildId;
   DateTime? _startDate;
   DateTime? _endDate;
+  String _leaveType = 'Izin';
   bool _loading = false;
   bool _loadingChildren = true;
   String? _error;
@@ -109,8 +112,11 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
       request.fields['start_date'] = _fmt(_startDate);
       request.fields['end_date'] = _fmt(_endDate);
       request.fields['reason'] = _reasonController.text.trim();
+      request.fields['leave_type'] = _leaveType;
 
-      final streamed = await request.send().timeout(const Duration(seconds: 20));
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 20),
+      );
       final response = await http.Response.fromStream(streamed);
       final data = jsonDecode(response.body);
 
@@ -160,7 +166,7 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   DropdownButtonFormField<int>(
-                    value: _selectedChildId,
+                    initialValue: _selectedChildId,
                     decoration: const InputDecoration(
                       labelText: 'Pilih Anak',
                       border: OutlineInputBorder(),
@@ -188,6 +194,21 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
                     subtitle: Text(_fmt(_endDate)),
                     trailing: const Icon(Icons.calendar_today),
                     onTap: () => _pickDate(isStart: false),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: _leaveType,
+                    decoration: const InputDecoration(
+                      labelText: 'Jenis izin',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'Izin', child: Text('Izin')),
+                      DropdownMenuItem(value: 'Sakit', child: Text('Sakit')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _leaveType = value);
+                    },
                   ),
                   const SizedBox(height: 16),
                   TextField(

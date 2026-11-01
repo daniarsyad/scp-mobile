@@ -1,7 +1,9 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../config/api_config.dart';
 import '../../services/api_service.dart';
 
@@ -9,12 +11,14 @@ class AttendanceScreen extends StatefulWidget {
   final int journalId;
   final String subject;
   final String className;
+  final ApiService? api;
 
   const AttendanceScreen({
     super.key,
     required this.journalId,
     required this.subject,
     required this.className,
+    this.api,
   });
 
   @override
@@ -22,7 +26,7 @@ class AttendanceScreen extends StatefulWidget {
 }
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
-  final _api = ApiService();
+  late final ApiService _api;
   bool _loading = true;
   String? _error;
   List<dynamic> _items = [];
@@ -30,6 +34,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   @override
   void initState() {
     super.initState();
+    _api = widget.api ?? ApiService();
     _load();
   }
 
@@ -39,8 +44,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       _error = null;
     });
 
-    final result =
-        await _api.get('${ApiConfig.attendanceByJournal}/${widget.journalId}');
+    final result = await _api.get(
+      '${ApiConfig.attendanceByJournal}/${widget.journalId}',
+    );
 
     setState(() {
       _loading = false;
@@ -59,6 +65,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return Colors.green;
       case 'Izin':
         return Colors.orange;
+      case 'Sakit':
+        return Colors.lightBlue;
       case 'Alpha':
         return Colors.red;
       default:
@@ -90,6 +98,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         await _load();
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Status: $status'),
@@ -151,6 +160,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 },
               ),
               ListTile(
+                leading: const Icon(
+                  Icons.medical_services_outlined,
+                  color: Colors.lightBlue,
+                ),
+                title: const Text('Sakit'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _setStatus(id, 'Sakit');
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.cancel, color: Colors.red),
                 title: const Text('Alpha'),
                 onTap: () {
@@ -195,13 +215,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'Kelas: ${widget.className}',
-                  style: TextStyle(color: Colors.white.withOpacity(0.9)),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.9)),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Ketuk nama siswa → pilih Hadir / Izin / Alpha',
+                  'Ketuk nama siswa → pilih Hadir / Izin / Sakit / Alpha',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 12,
                   ),
                 ),
@@ -212,63 +232,60 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Center(
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                      )
-                    : _items.isEmpty
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Text(
-                                'Belum ada data presensi.\nIsi jurnal dulu agar daftar siswa muncul.',
-                                textAlign: TextAlign.center,
+                ? Center(
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  )
+                : _items.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'Belum ada data presensi.\nIsi jurnal dulu agar daftar siswa muncul.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _items.length,
+                    itemBuilder: (context, index) {
+                      final item = _items[index];
+                      final name = item['student']?['fullname'] ?? '-';
+                      final status = (item['status'] ?? 'Hadir').toString();
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          title: Text(
+                            name,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          trailing: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _color(status).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              status,
+                              style: TextStyle(
+                                color: _color(status),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
                               ),
                             ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(12),
-                            itemCount: _items.length,
-                            itemBuilder: (context, index) {
-                              final item = _items[index];
-                              final name = item['student']?['fullname'] ?? '-';
-                              final status =
-                                  (item['status'] ?? 'Hadir').toString();
-
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                child: ListTile(
-                                  title: Text(
-                                    name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  trailing: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _color(status).withOpacity(0.12),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      status,
-                                      style: TextStyle(
-                                        color: _color(status),
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                  onTap: () => _showStatusPicker(item),
-                                ),
-                              );
-                            },
                           ),
+                          onTap: () => _showStatusPicker(item),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),

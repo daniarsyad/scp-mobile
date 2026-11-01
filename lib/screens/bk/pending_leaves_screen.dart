@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+
 import '../../config/api_config.dart';
 import '../../services/api_service.dart';
 import '../../theme/scp_theme.dart';
 import '../../utils/format.dart';
+import '../../utils/live_refresh.dart';
 import '../../utils/media_url.dart';
 import '../../widgets/dashboard_kit.dart';
 
@@ -10,12 +12,14 @@ class PendingLeavesScreen extends StatefulWidget {
   final String? targetClass;
   final bool isBk;
   final bool embedded;
+  final ApiService? api;
 
   const PendingLeavesScreen({
     super.key,
     this.targetClass,
     this.isBk = false,
     this.embedded = false,
+    this.api,
   });
 
   @override
@@ -23,7 +27,7 @@ class PendingLeavesScreen extends StatefulWidget {
 }
 
 class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
-  final _api = ApiService();
+  late final ApiService _api;
   bool _loading = true;
   String? _error;
   List<dynamic> _leaves = [];
@@ -32,6 +36,7 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
   @override
   void initState() {
     super.initState();
+    _api = widget.api ?? ApiService();
     _load();
   }
 
@@ -104,37 +109,21 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
   }
 
   Future<void> _verify(int id, String status, String studentName) async {
+    if (widget.isBk) return;
+
     final isApprove = status == 'Approved';
-    final confirmed = await showDialog<bool>(
+    final decision = await showDialog<Map<String, String>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isApprove ? 'Setujui Pengajuan Izin?' : 'Tolak Pengajuan Izin?'),
-        content: Text(
-          isApprove
-              ? 'Anda akan menyetujui pengajuan izin untuk siswa $studentName.'
-              : 'Apakah Anda yakin ingin menolak pengajuan izin untuk siswa $studentName?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: isApprove ? ScpColors.green : ScpColors.red,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isApprove ? 'Setujui' : 'Tolak'),
-          ),
-        ],
+      builder: (_) => _LeaveVerificationDialog(
+        isApprove: isApprove,
+        status: status,
+        studentName: studentName,
       ),
     );
 
-    if (confirmed != true) return;
+    if (decision == null) return;
 
-    final result = await _api.post('/leave-requests/$id/verify', {
-      'status_approval': status,
-    });
+    final result = await _api.post('/leave-requests/$id/verify', decision);
 
     if (!mounted) return;
 
@@ -145,6 +134,7 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
           backgroundColor: isApprove ? ScpColors.green : Colors.grey.shade800,
         ),
       );
+      LiveRefresh.pingLeaves();
       _load();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -172,7 +162,10 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
                   Expanded(
                     child: Text(
                       'Surat Dokter - $studentName',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -187,7 +180,7 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
                 child: Image.network(
                   imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Padding(
+                  errorBuilder: (_, _, _) => const Padding(
                     padding: EdgeInsets.all(32),
                     child: Center(
                       child: Text('Gagal menampilkan gambar surat dokter'),
@@ -216,9 +209,11 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
     return Scaffold(
       backgroundColor: ScpColors.bg,
       appBar: AppBar(
-        title: Text(widget.isBk
-            ? 'Verifikasi Izin (Guru BK)'
-            : 'Verifikasi Izin ${widget.targetClass ?? ""}'),
+        title: Text(
+          widget.isBk
+              ? 'Monitoring Izin (Guru BK)'
+              : 'Verifikasi Izin ${widget.targetClass ?? ""}',
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load),
         ],
@@ -239,7 +234,9 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 96),
         children: [
           // Banner Status
-          if (!widget.isBk && widget.targetClass != null && widget.targetClass!.isNotEmpty)
+          if (!widget.isBk &&
+              widget.targetClass != null &&
+              widget.targetClass!.isNotEmpty)
             Container(
               margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.all(14),
@@ -277,7 +274,10 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
                         ),
                         const Text(
                           'Menampilkan antrian pengajuan izin dari siswa kelas bimbingan Anda.',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF115E59)),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF115E59),
+                          ),
                         ),
                       ],
                     ),
@@ -322,8 +322,11 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
                           ),
                         ),
                         Text(
-                          'Guru BK dapat meninjau dan memverifikasi izin siswa dari semua kelas.',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF5B21B6)),
+                          'Guru BK dapat memantau pengajuan izin siswa dari semua kelas.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF5B21B6),
+                          ),
                         ),
                       ],
                     ),
@@ -344,9 +347,16 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.filter_list_rounded, size: 18, color: ScpColors.blue),
+                  const Icon(
+                    Icons.filter_list_rounded,
+                    size: 18,
+                    color: ScpColors.blue,
+                  ),
                   const SizedBox(width: 10),
-                  const Text('Filter Kelas: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Filter Kelas: ',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
                   Expanded(
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
@@ -356,11 +366,16 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
                         items: availableClasses.map((c) {
                           return DropdownMenuItem<String>(
                             value: c,
-                            child: Text(c, style: const TextStyle(fontSize: 13)),
+                            child: Text(
+                              c,
+                              style: const TextStyle(fontSize: 13),
+                            ),
                           );
                         }).toList(),
                         onChanged: (val) {
-                          if (val != null) setState(() => _selectedClassFilter = val);
+                          if (val != null) {
+                            setState(() => _selectedClassFilter = val);
+                          }
                         },
                       ),
                     ),
@@ -405,7 +420,9 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
           if (_loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: CircularProgressIndicator(color: ScpColors.blue)),
+              child: Center(
+                child: CircularProgressIndicator(color: ScpColors.blue),
+              ),
             )
           else if (_error != null)
             ScpEmpty(message: _error!, icon: Icons.cloud_off_outlined)
@@ -413,25 +430,34 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: ScpEmpty(
-                message: widget.targetClass != null && widget.targetClass!.isNotEmpty
+                message: widget.isBk
+                    ? 'Tidak ada pengajuan izin yang menunggu verifikasi'
+                    : widget.targetClass != null &&
+                          widget.targetClass!.isNotEmpty
                     ? 'Tidak ada pengajuan izin yang menunggu verifikasi untuk kelas ${widget.targetClass}'
                     : 'Tidak ada pengajuan izin yang menunggu verifikasi',
                 icon: Icons.check_circle_outline_rounded,
               ),
             )
           else
-            for (final item in filtered) _leaveCard(Map<String, dynamic>.from(item as Map)),
+            for (final item in filtered)
+              _leaveCard(Map<String, dynamic>.from(item as Map)),
         ],
       ),
     );
   }
 
   Widget _leaveCard(Map<String, dynamic> item) {
-    final id = item['id'] is int ? item['id'] as int : int.tryParse('${item['id']}') ?? 0;
+    final id = item['id'] is int
+        ? item['id'] as int
+        : int.tryParse('${item['id']}') ?? 0;
     final student = asMap(item['student']);
     final studentName = student['fullname']?.toString() ?? 'Siswa';
     final className = _studentClassName(item);
     final reason = item['reason']?.toString() ?? '-';
+    final leaveType = item['leave_type']?.toString() ?? 'Izin';
+    final rejectionReason = item['rejection_reason']?.toString();
+    final cancelledAt = item['cancelled_at']?.toString();
     final start = (item['start_date'] ?? '').toString();
     final end = (item['end_date'] ?? '').toString();
     final startShort = formatShortDate(start);
@@ -486,7 +512,7 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
                         ),
                       ),
                       Text(
-                        className,
+                        '$className • $leaveType',
                         style: const TextStyle(
                           color: ScpColors.muted,
                           fontSize: 12,
@@ -496,7 +522,10 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: ScpColors.amberCard,
                     borderRadius: BorderRadius.circular(10),
@@ -514,6 +543,16 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
               ],
             ),
             const SizedBox(height: 12),
+            if (rejectionReason != null && rejectionReason.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text('Alasan penolakan: $rejectionReason'),
+              ),
+            if (cancelledAt != null && cancelledAt.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Text('Pengajuan ini telah dibatalkan.'),
+              ),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -525,7 +564,11 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today_rounded, size: 14, color: ScpColors.muted),
+                      const Icon(
+                        Icons.calendar_today_rounded,
+                        size: 14,
+                        color: ScpColors.muted,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         '$startShort  s/d  $endShort',
@@ -541,7 +584,11 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.info_outline_rounded, size: 14, color: ScpColors.muted),
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        size: 14,
+                        color: ScpColors.muted,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -566,43 +613,141 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
                 label: const Text('Lihat Surat Dokter'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: ScpColors.blue,
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 12,
+                  ),
                   visualDensity: VisualDensity.compact,
                 ),
               ),
             ],
 
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _verify(id, 'Rejected', studentName),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: ScpColors.red,
-                      side: const BorderSide(color: ScpColors.red, width: 1.2),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+            if (!widget.isBk &&
+                (cancelledAt == null || cancelledAt.isEmpty)) ...[
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _verify(id, 'Rejected', studentName),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: ScpColors.red,
+                        side: const BorderSide(
+                          color: ScpColors.red,
+                          width: 1.2,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      child: const Text('Tolak'),
                     ),
-                    child: const Text('Tolak'),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _verify(id, 'Approved', studentName),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: ScpColors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _verify(id, 'Approved', studentName),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ScpColors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      child: const Text('Setujui'),
                     ),
-                    child: const Text('Setujui'),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+class _LeaveVerificationDialog extends StatefulWidget {
+  const _LeaveVerificationDialog({
+    required this.isApprove,
+    required this.status,
+    required this.studentName,
+  });
+
+  final bool isApprove;
+  final String status;
+  final String studentName;
+
+  @override
+  State<_LeaveVerificationDialog> createState() =>
+      _LeaveVerificationDialogState();
+}
+
+class _LeaveVerificationDialogState extends State<_LeaveVerificationDialog> {
+  final _reasonController = TextEditingController();
+  bool _reasonError = false;
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (widget.isApprove) {
+      Navigator.pop(context, {'status_approval': widget.status});
+      return;
+    }
+
+    final reason = _reasonController.text.trim();
+    if (reason.length < 3 || reason.length > 500) {
+      setState(() => _reasonError = true);
+      return;
+    }
+
+    Navigator.pop(context, {
+      'status_approval': widget.status,
+      'rejection_reason': reason,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      widget.isApprove ? 'Setujui Pengajuan Izin?' : 'Tolak Pengajuan Izin?',
+    ),
+    content: widget.isApprove
+        ? Text(
+            'Anda akan menyetujui pengajuan izin untuk siswa ${widget.studentName}.',
+          )
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Masukkan alasan penolakan untuk ${widget.studentName}.'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _reasonController,
+                minLines: 2,
+                maxLines: 4,
+                maxLength: 500,
+                decoration: InputDecoration(
+                  labelText: 'Alasan penolakan',
+                  errorText: _reasonError
+                      ? 'Alasan harus 3–500 karakter.'
+                      : null,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Batal'),
+      ),
+      FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: widget.isApprove ? ScpColors.green : ScpColors.red,
+        ),
+        onPressed: _submit,
+        child: Text(widget.isApprove ? 'Setujui' : 'Tolak'),
+      ),
+    ],
+  );
 }

@@ -24,13 +24,16 @@ class ApiConfig {
 
   static const String journals = '/journals';
   static const String myJournals = '/journals/my';
+  static const String journalMonitor = '/journals/monitor';
 
   static const String leaveRequests = '/leave-requests';
   static const String myLeaveRequests = '/leave-requests/my';
   static const String pendingLeaves = '/leave-requests/pending';
+  static String cancelLeave(int id) => '/leave-requests/$id/cancel';
 
   static const String attendanceByJournal = '/attendances/journal';
   static const String attendanceReport = '/attendances/report';
+  static const String attendanceReportExport = '/attendances/report/export';
   static const String attendanceUpdate = '/attendances';
   static const String myAttendances = '/attendances/my';
 }

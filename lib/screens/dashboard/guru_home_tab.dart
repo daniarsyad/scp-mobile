@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../../config/api_config.dart';
 import '../../models/user_model.dart';
 import '../../services/api_service.dart';
@@ -9,17 +11,24 @@ import '../../utils/live_refresh.dart';
 import '../../widgets/dashboard_kit.dart';
 import '../guru/attendance_screen.dart';
 import '../guru/create_journal_screen.dart';
+import '../../services/journal_draft_store.dart';
 
 class GuruHomeTab extends StatefulWidget {
   final UserModel user;
   final ValueChanged<Map<String, dynamic>?> onNextSchedule;
   final ValueChanged<int>? onNavigateTab;
+  final int recapTabIndex;
+  final int journalTabIndex;
+  final bool showRecapAction;
 
   const GuruHomeTab({
     super.key,
     required this.user,
     required this.onNextSchedule,
     this.onNavigateTab,
+    this.recapTabIndex = 1,
+    this.journalTabIndex = 2,
+    this.showRecapAction = true,
   });
 
   @override
@@ -32,6 +41,9 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
   String? _cycle;
   bool _locked = false;
   List<Map<String, dynamic>> _today = [];
+  final _draftStore = JournalDraftStore();
+  Set<int> _draftScheduleIds = {};
+  String? _draftError;
   Timer? _timer;
 
   @override
@@ -39,7 +51,10 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
     super.initState();
     LiveRefresh.journals.addListener(_onPing);
     _load();
-    _timer = Timer.periodic(const Duration(seconds: 8), (_) => _load(silent: true));
+    _timer = Timer.periodic(
+      const Duration(seconds: 8),
+      (_) => _load(silent: true),
+    );
   }
 
   @override
@@ -60,6 +75,16 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
 
     final config = await _api.get(ApiConfig.systemConfig);
     final today = await _api.get(ApiConfig.schedulesToday);
+    Set<int> draftScheduleIds = {};
+    String? draftError;
+    try {
+      draftScheduleIds = (await _draftStore.loadAll(ownerId: widget.user.id))
+          .where((draft) => draft.date == todayIso())
+          .map((draft) => draft.scheduleId)
+          .toSet();
+    } catch (error) {
+      draftError = 'Gagal memuat draf lokal: $error';
+    }
     if (!mounted) return;
 
     final rows = <Map<String, dynamic>>[];
@@ -74,7 +99,8 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
     if (config['success'] == true && config['data'] is Map) {
       final data = asMap(config['data']);
       cycle = data['active_cycle']?.toString();
-      locked = data['is_schedule_locked'] == true || data['is_schedule_locked'] == 1;
+      locked =
+          data['is_schedule_locked'] == true || data['is_schedule_locked'] == 1;
     }
 
     Map<String, dynamic>? next;
@@ -90,6 +116,8 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
       _today = rows;
       _cycle = cycle;
       _locked = locked;
+      _draftScheduleIds = draftScheduleIds;
+      _draftError = draftError;
     });
     widget.onNextSchedule(next);
   }
@@ -113,7 +141,8 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => CreateJournalScreen(schedule: schedule),
+          builder: (_) =>
+              CreateJournalScreen(schedule: schedule, ownerId: widget.user.id),
         ),
       );
     }
@@ -143,9 +172,19 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
           if (_loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 48),
-              child: Center(child: CircularProgressIndicator(color: ScpColors.blue)),
+              child: Center(
+                child: CircularProgressIndicator(color: ScpColors.blue),
+              ),
             )
           else ...[
+            if (_draftError != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  _draftError!,
+                  style: const TextStyle(color: ScpColors.red),
+                ),
+              ),
             ScpHeroPager(
               pages: [
                 ScpHeroData(
@@ -157,8 +196,12 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
                   icon: Icons.school_rounded,
                 ),
                 ScpHeroData(
-                  value: _cycle == null || _cycle!.isEmpty ? 'Reguler' : 'Putaran $_cycle',
-                  label: _locked ? 'Status: Jadwal Terkunci' : 'Status: Jadwal Terbuka',
+                  value: _cycle == null || _cycle!.isEmpty
+                      ? 'Reguler'
+                      : 'Putaran $_cycle',
+                  label: _locked
+                      ? 'Status: Jadwal Terkunci'
+                      : 'Status: Jadwal Terbuka',
                   footerTitle: 'Sistem Pembelajaran',
                   footerSubtitle: todayLabel(),
                   gradient: ScpColors.navyGradient,
@@ -189,24 +232,29 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
                       _open(_today.first);
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Tidak ada jadwal KBM hari ini')),
+                        const SnackBar(
+                          content: Text('Tidak ada jadwal KBM hari ini'),
+                        ),
                       );
                     }
                   },
                 ),
-                ScpQuickActionItem(
-                  icon: Icons.calendar_month_rounded,
-                  title: 'Rekap\nKBM',
-                  color: ScpColors.teal,
-                  bg: ScpColors.tealCard,
-                  onTap: () => widget.onNavigateTab?.call(1),
-                ),
+                if (widget.showRecapAction)
+                  ScpQuickActionItem(
+                    icon: Icons.calendar_month_rounded,
+                    title: 'Rekap\nKBM',
+                    color: ScpColors.teal,
+                    bg: ScpColors.tealCard,
+                    onTap: () =>
+                        widget.onNavigateTab?.call(widget.recapTabIndex),
+                  ),
                 ScpQuickActionItem(
                   icon: Icons.menu_book_rounded,
                   title: 'Riwayat\nJurnal',
                   color: ScpColors.purple,
                   bg: ScpColors.purpleCard,
-                  onTap: () => widget.onNavigateTab?.call(2),
+                  onTap: () =>
+                      widget.onNavigateTab?.call(widget.journalTabIndex),
                 ),
                 ScpQuickActionItem(
                   icon: Icons.refresh_rounded,
@@ -220,7 +268,10 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
             const SizedBox(height: 20),
 
             // Stat Cards Section
-            ScpSectionHeader(title: 'Progres Jurnal Hari Ini', chip: todayLabel()),
+            ScpSectionHeader(
+              title: 'Progres Jurnal Hari Ini',
+              chip: todayLabel(),
+            ),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -238,7 +289,9 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
                   child: ScpStatCard(
                     label: 'Belum Terisi',
                     value: '$missing',
-                    background: missing > 0 ? ScpColors.redCard : ScpColors.surfaceAlt,
+                    background: missing > 0
+                        ? ScpColors.redCard
+                        : ScpColors.surfaceAlt,
                     valueColor: missing > 0 ? ScpColors.red : ScpColors.muted,
                     icon: Icons.pending_actions_rounded,
                   ),
@@ -279,8 +332,7 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
                 ),
               )
             else
-              for (var i = 0; i < _today.length; i++)
-                _row(_today[i], i),
+              for (var i = 0; i < _today.length; i++) _row(_today[i], i),
           ],
         ],
       ),
@@ -290,6 +342,7 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
   Widget _row(Map<String, dynamic> schedule, int index) {
     final palette = activityPalette[index % activityPalette.length];
     final done = journalFilledToday(schedule);
+    final hasDraft = !done && _draftScheduleIds.contains(asInt(schedule['id']));
     final subject = schedule['subject']?.toString() ?? '-';
     final className = schedule['class']?['class_name']?.toString() ?? '-';
     final start = formatTime(schedule['start_time']);
@@ -300,9 +353,19 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
       iconBg: palette.bg,
       iconColor: palette.fg,
       title: subject,
-      subtitle: '$start - $end  •  Kelas $className',
-      trailing: done ? 'Terisi' : 'Isi Jurnal',
-      trailingColor: done ? ScpColors.green : ScpColors.blue,
+      subtitle: hasDraft
+          ? '$start - $end  •  Kelas $className  •  🟡 Draf Presensi Tersimpan • Belum Selesai Jurnal'
+          : '$start - $end  •  Kelas $className',
+      trailing: hasDraft
+          ? 'Lanjutkan Jurnal »'
+          : done
+          ? 'Terisi'
+          : 'Isi Jurnal',
+      trailingColor: hasDraft
+          ? ScpColors.amber
+          : done
+          ? ScpColors.green
+          : ScpColors.blue,
       onTap: () => _open(schedule),
     );
   }
