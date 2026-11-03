@@ -58,11 +58,14 @@ void main() {
           ownerId: 7,
           api: ApiService(client: client),
           draftStore: store,
-          pickImage: (_) async => XFile.fromData(
-            photoBytes,
-            mimeType: 'image/png',
-            name: 'lesson.png',
-          ),
+          pickImage: (source) async {
+            expect(source, ImageSource.camera);
+            return XFile.fromData(
+              photoBytes,
+              mimeType: 'image/png',
+              name: 'lesson.png',
+            );
+          },
         ),
       ),
     );
@@ -77,7 +80,7 @@ void main() {
       find.byKey(const ValueKey('journal-topic')),
       'Persamaan kuadrat',
     );
-    await tester.tap(find.text('Galeri'));
+    await tester.tap(find.text('Ambil foto'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Siswa Contoh'),
@@ -118,6 +121,63 @@ void main() {
     expect(await store.load(7, 23, todayIso()), isNull);
   });
 
+  testWidgets('loads roster from classes list when schedule omits students', (
+    tester,
+  ) async {
+    final requests = <http.Request>[];
+    final client = MockClient((request) async {
+      requests.add(request);
+      if (request.url.path.endsWith('/classes')) {
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'data': [
+              {
+                'id': 9,
+                'class_name': 'XII RPL 2',
+                'students': [
+                  {
+                    'id': 101,
+                    'fullname': 'Siswa dari Daftar Kelas',
+                    'nisn': '00101',
+                  },
+                ],
+              },
+            ],
+          }),
+          200,
+        );
+      }
+      return http.Response('Unexpected request', 500);
+    });
+    final store = JournalDraftStore();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateJournalScreen(
+          schedule: const {
+            'id': 24,
+            'subject': 'Matematika',
+            'class_id': 9,
+            'class': {'id': 9, 'class_name': 'XII RPL 2'},
+          },
+          ownerId: 7,
+          api: ApiService(client: client),
+          draftStore: store,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(requests, hasLength(1));
+    expect(requests.single.url.path, endsWith('/classes'));
+    expect(find.text('Siswa dari Daftar Kelas'), findsOneWidget);
+    expect(find.textContaining('Roster siswa tidak ditemukan'), findsNothing);
+    final draft = await store.load(7, 24, todayIso());
+    expect(draft, isNotNull);
+    expect(draft!.attendances.single['student_id'], 101);
+  });
+
   testWidgets('retries uncertain submission using the same key and payload', (
     tester,
   ) async {
@@ -153,11 +213,14 @@ void main() {
           ownerId: 7,
           api: ApiService(client: client),
           draftStore: store,
-          pickImage: (_) async => XFile.fromData(
-            photoBytes,
-            mimeType: 'image/png',
-            name: 'lesson.png',
-          ),
+          pickImage: (source) async {
+            expect(source, ImageSource.camera);
+            return XFile.fromData(
+              photoBytes,
+              mimeType: 'image/png',
+              name: 'lesson.png',
+            );
+          },
         ),
       ),
     );
@@ -166,7 +229,7 @@ void main() {
       find.byKey(const ValueKey('journal-topic')),
       'Materi yang sama',
     );
-    await tester.tap(find.text('Galeri'));
+    await tester.tap(find.text('Ambil foto'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Selesai & Simpan Jurnal'),
@@ -223,11 +286,14 @@ void main() {
           ownerId: 7,
           api: ApiService(client: client),
           draftStore: store,
-          pickImage: (_) async => XFile.fromData(
-            photoBytes,
-            mimeType: 'image/png',
-            name: 'lesson.png',
-          ),
+          pickImage: (source) async {
+            expect(source, ImageSource.camera);
+            return XFile.fromData(
+              photoBytes,
+              mimeType: 'image/png',
+              name: 'lesson.png',
+            );
+          },
         ),
       ),
     );
@@ -236,7 +302,7 @@ void main() {
       find.byKey(const ValueKey('journal-topic')),
       'Topik valid',
     );
-    await tester.tap(find.text('Galeri'));
+    await tester.tap(find.text('Ambil foto'));
     await tester.pumpAndSettle();
     final originalKey = (await store.load(7, 23, todayIso()))!.idempotencyKey;
 

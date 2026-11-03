@@ -2,8 +2,9 @@
 <resources>
     <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">@drawable/launch_background</item>
-        <item name="android:windowSplashScreenBackground">#102A43</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/school_logo</item>
-        <item name="android:windowSplashScreenIconBackgroundColor">#FFFFFF</item>
+        <item name="android:windowSplashScreenBackground">@color/scp_splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_clear</item>
+        <item name="android:statusBarColor">@color/scp_splash_background</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

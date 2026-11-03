@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import 'screens/login_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/app_theme_controller.dart';
 import 'theme/scp_theme.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await AppThemeController.instance.load();
   runApp(const ScpApp());
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(AppThemeController.instance.load());
+  });
 }
 
 class ScpApp extends StatelessWidget {
@@ -23,7 +27,7 @@ class ScpApp extends StatelessWidget {
         theme: scpTheme(),
         darkTheme: scpDarkTheme(),
         themeMode: AppThemeController.instance.themeMode,
-        home: const LoginScreen(),
+        home: const SplashScreen(),
       ),
     );
   }

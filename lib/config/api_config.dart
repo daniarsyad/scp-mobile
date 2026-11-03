@@ -33,7 +33,6 @@ class ApiConfig {
 
   static const String attendanceByJournal = '/attendances/journal';
   static const String attendanceReport = '/attendances/report';
-  static const String attendanceReportExport = '/attendances/report/export';
   static const String attendanceUpdate = '/attendances';
   static const String myAttendances = '/attendances/my';
 }

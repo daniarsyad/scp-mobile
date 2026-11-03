@@ -76,14 +76,57 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
       }
 
       final classData = _asMap(widget.schedule['class']);
-      final students = classData['students'];
-      if (students is! List) {
+      var students = _classStudents(classData);
+      if (students == null || students.isEmpty) {
+        final classId = _readInt(
+          classData['id'] ??
+              classData['class_id'] ??
+              widget.schedule['class_id'],
+        );
+        if (classId <= 0) {
+          throw const FormatException(
+            'ID kelas tidak tersedia untuk memuat roster siswa.',
+          );
+        }
+        final result = await _api.get(ApiConfig.classes);
+        if (result['success'] != true) {
+          throw StateError(
+            result['message']?.toString().isNotEmpty == true
+                ? result['message'].toString()
+                : 'Gagal memuat daftar kelas.',
+          );
+        }
+        final classesData = result['data'];
+        final classes = classesData is List
+            ? classesData
+            : _asMap(classesData)['data'] is List
+            ? _asMap(classesData)['data'] as List
+            : const [];
+        Map<String, dynamic>? matchingClass;
+        for (final item in classes) {
+          final candidate = _asMap(item);
+          if (_readInt(candidate['id'] ?? candidate['class_id']) == classId) {
+            matchingClass = candidate;
+            break;
+          }
+        }
+        if (matchingClass != null) {
+          students =
+              _classStudents(matchingClass) ??
+              _classStudents(_asMap(matchingClass['class'])) ??
+              _classStudents(classData);
+        }
+      }
+      if (students == null) {
         throw const FormatException(
-          'Roster siswa tidak ditemukan pada data kelas jadwal.',
+          'Endpoint daftar kelas tidak menyertakan roster siswa untuk kelas ini.',
         );
       }
       _roster = students.map(_asMap).map((student) {
-        final id = _readInt(student['id']);
+        final nestedStudent = _asMap(student['student']);
+        final id = _readInt(
+          student['id'] ?? student['student_id'] ?? nestedStudent['id'],
+        );
         if (id <= 0) {
           throw const FormatException(
             'Roster berisi siswa tanpa ID yang valid.',
@@ -93,9 +136,13 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
           'student_id': id,
           'fullname':
               student['fullname']?.toString() ??
+              nestedStudent['fullname']?.toString() ??
               student['name']?.toString() ??
               'Siswa',
-          'nisn': student['nisn']?.toString() ?? '',
+          'nisn':
+              student['nisn']?.toString() ??
+              nestedStudent['nisn']?.toString() ??
+              '',
         };
       }).toList();
       if (_roster.isEmpty) {
@@ -196,16 +243,16 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
     });
   }
 
-  Future<void> _pickPhoto(ImageSource source) async {
+  Future<void> _pickPhoto() async {
     if (_submissionUncertain) return;
     try {
       final photo = widget.pickImage == null
           ? await _picker.pickImage(
-              source: source,
+              source: ImageSource.camera,
               imageQuality: 70,
               preferredCameraDevice: CameraDevice.rear,
             )
-          : await widget.pickImage!(source);
+          : await widget.pickImage!(ImageSource.camera);
       if (photo == null) return;
       final bytes = await photo.readAsBytes();
       if (bytes.length > _maxPhotoBytes) {
@@ -473,6 +520,21 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
     return <String, dynamic>{};
   }
 
+  static List<dynamic>? _classStudents(Map<String, dynamic> classData) {
+    for (final key in [
+      'students',
+      'roster',
+      'student_list',
+      'class_students',
+    ]) {
+      final value = classData[key];
+      if (value is List) return value;
+      final nestedData = _asMap(value)['data'];
+      if (nestedData is List) return nestedData;
+    }
+    return null;
+  }
+
   static int _readInt(dynamic value) {
     if (value is int) return value;
     return int.tryParse('$value') ?? 0;
@@ -572,26 +634,13 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: locked ? null : () => _pickPhoto(ImageSource.camera),
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('Kamera'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: locked
-                    ? null
-                    : () => _pickPhoto(ImageSource.gallery),
-                icon: const Icon(Icons.photo_library_outlined),
-                label: Text(photoBytes == null ? 'Galeri' : 'Ganti foto'),
-              ),
-            ),
-          ],
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: locked ? null : _pickPhoto,
+            icon: const Icon(Icons.camera_alt),
+            label: Text(photoBytes == null ? 'Ambil foto' : 'Ambil ulang foto'),
+          ),
         ),
         if (photoBytes != null) ...[
           const SizedBox(height: 10),

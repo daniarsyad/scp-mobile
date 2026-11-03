@@ -45,9 +45,9 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
     }
   }
 
-  Future<void> _pickDocument(ImageSource source) async {
+  Future<void> _pickDocument() async {
     final x = await _picker.pickImage(
-      source: source,
+      source: ImageSource.camera,
       imageQuality: 70,
       preferredCameraDevice: CameraDevice.rear,
     );
@@ -231,24 +231,15 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
               style: TextStyle(fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _pickDocument(ImageSource.camera),
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Kamera'),
-                  ),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _pickDocument,
+                icon: const Icon(Icons.camera_alt),
+                label: Text(
+                  _document == null ? 'Ambil foto' : 'Ambil ulang foto',
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _pickDocument(ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library_outlined),
-                    label: Text(_document == null ? 'Galeri' : 'Ganti surat'),
-                  ),
-                ),
-              ],
+              ),
             ),
             if (_docBytes != null) ...[
               const SizedBox(height: 12),

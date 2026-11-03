@@ -1,12 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/scp_splash_background" />
+<animation-list xmlns:android="http://schemas.android.com/apk/res/android"
+    android:oneshot="false">
     <item
-        android:width="160dp"
-        android:height="160dp"
-        android:gravity="center">
-        <bitmap
-            android:gravity="fill"
-            android:src="@drawable/school_logo" />
-    </item>
-</layer-list>
+        android:drawable="@drawable/launch_splash_0"
+        android:duration="110" />
+    <item
+        android:drawable="@drawable/launch_splash_1"
+        android:duration="110" />
+    <item
+        android:drawable="@drawable/launch_splash_2"
+        android:duration="110" />
+    <item
+        android:drawable="@drawable/launch_splash_3"
+        android:duration="110" />
+    <item
+        android:drawable="@drawable/launch_splash_4"
+        android:duration="110" />
+    <item
+        android:drawable="@drawable/launch_splash_5"
+        android:duration="110" />
+    <item
+        android:drawable="@drawable/launch_splash_6"
+        android:duration="110" />
+    <item
+        android:drawable="@drawable/launch_splash_7"
+        android:duration="110" />
+</animation-list>

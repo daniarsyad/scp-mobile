@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_saver/file_saver.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 import '../config/api_config.dart';
 import '../models/user_model.dart';
@@ -157,29 +159,133 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   Future<void> _exportReport() async {
     setState(() => _exporting = true);
     try {
-      final response = await _api.download(
-        Uri(
-          path: ApiConfig.attendanceReportExport,
-          queryParameters: _reportParams(),
-        ).toString(),
-      );
-      if (!mounted) return;
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw StateError(
-          'Export gagal (${response.statusCode}): ${response.body}',
+      final attendances = _filteredAttendances();
+      final attendancesByClass = <String, List<Map<String, dynamic>>>{};
+      for (final attendance in attendances) {
+        final className = _getClassNameOfItem(attendance);
+        attendancesByClass.putIfAbsent(className, () => []).add(attendance);
+      }
+      if (attendancesByClass.isEmpty) {
+        final className = _isWaliKelasOnly
+            ? _waliClassName ?? 'Kelas'
+            : _selectedClass;
+        attendancesByClass[className] = [];
+      }
+
+      final reportTitle = 'DAFTAR PRESENSI SISWA';
+      final document = pw.Document(title: reportTitle);
+      for (final entry in attendancesByClass.entries) {
+        final className = entry.key;
+        final classData = _classDataForReport(className, entry.value);
+        final waliKelasName = _homeroomTeacherName(className, classData);
+        final studentRows = _attendancePdfRows(entry.value);
+        document.addPage(
+          pw.MultiPage(
+            pageFormat: PdfPageFormat.a4,
+            margin: const pw.EdgeInsets.fromLTRB(32, 30, 32, 30),
+            maxPages: 200,
+            header: (context) => pw.Align(
+              alignment: pw.Alignment.centerRight,
+              child: pw.Text(
+                '$reportTitle - Halaman ${context.pageNumber}',
+                style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+              ),
+            ),
+            build: (context) => [
+              pw.Center(
+                child: pw.Text(
+                  reportTitle,
+                  style: pw.TextStyle(
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+              pw.SizedBox(height: 14),
+              pw.Row(
+                children: [
+                  pw.Expanded(
+                    child: pw.Text(
+                      'Tanggal: ${_monthly ? '${_date.year}-${_date.month.toString().padLeft(2, '0')}' : _displayDate()}',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                  ),
+                  pw.Expanded(
+                    child: pw.Text(
+                      'Kelas: $className',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text(
+                'Wali Kelas: $waliKelasName',
+                style: const pw.TextStyle(fontSize: 10),
+              ),
+              pw.SizedBox(height: 14),
+              if (studentRows.isEmpty)
+                pw.Text('Tidak ada data presensi untuk kelas dan tanggal ini.')
+              else
+                pw.TableHelper.fromTextArray(
+                  headers: const [
+                    'No.',
+                    'Nama Siswa',
+                    'Hadir',
+                    'Sakit',
+                    'Alpha',
+                    'Catatan',
+                  ],
+                  data: studentRows,
+                  cellHeight: 23,
+                  headerStyle: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.blueGrey900,
+                  ),
+                  headerDecoration: const pw.BoxDecoration(
+                    color: PdfColor.fromInt(0xFFDDF2FA),
+                  ),
+                  headerAlignment: pw.Alignment.center,
+                  cellStyle: const pw.TextStyle(fontSize: 9),
+                  cellPadding: const pw.EdgeInsets.all(5),
+                  cellAlignments: {
+                    0: pw.Alignment.center,
+                    2: pw.Alignment.center,
+                    3: pw.Alignment.center,
+                    4: pw.Alignment.center,
+                  },
+                  border: pw.TableBorder.all(
+                    color: PdfColors.blueGrey400,
+                    width: 0.6,
+                  ),
+                  columnWidths: {
+                    0: const pw.FixedColumnWidth(28),
+                    1: const pw.FlexColumnWidth(2.2),
+                    2: const pw.FlexColumnWidth(0.65),
+                    3: const pw.FlexColumnWidth(0.65),
+                    4: const pw.FlexColumnWidth(0.65),
+                    5: const pw.FlexColumnWidth(1.5),
+                  },
+                ),
+              pw.SizedBox(height: 8),
+              pw.Text(
+                'Keterangan: tanda X menunjukkan status presensi tercatat.',
+                style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+              ),
+            ],
+          ),
         );
       }
-      if (response.bodyBytes.isEmpty) {
-        throw StateError('File ekspor yang diterima kosong.');
-      }
+
       final filename = _monthly
           ? 'rekap-presensi-${_date.year}-${_date.month.toString().padLeft(2, '0')}'
           : 'rekap-presensi-$_dateValue';
       final savedPath = await FileSaver.instance.saveAs(
         name: filename,
-        bytes: response.bodyBytes,
-        fileExtension: 'xlsx',
-        mimeType: MimeType.microsoftExcel,
+        bytes: await document.save(),
+        fileExtension: 'pdf',
+        mimeType: MimeType.pdf,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -187,7 +293,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           content: Text(
             savedPath == null
                 ? 'Unduhan dibatalkan.'
-                : 'File XLSX berhasil disimpan.',
+                : 'File PDF berhasil disimpan.',
           ),
         ),
       );
@@ -199,6 +305,140 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
+  }
+
+  List<List<String>> _attendancePdfRows(
+    List<Map<String, dynamic>> attendances,
+  ) {
+    final students = <String, Map<String, dynamic>>{};
+    for (final item in attendances) {
+      final student = asMap(item['student']);
+      final name = student['fullname']?.toString().trim();
+      final studentName = name == null || name.isEmpty ? 'Siswa' : name;
+      final id = student['id']?.toString();
+      final key = id == null || id.isEmpty ? studentName.toLowerCase() : id;
+      final row = students.putIfAbsent(
+        key,
+        () => {
+          'name': studentName,
+          'statuses': <String>{},
+          'notes': <String>{},
+        },
+      );
+      final status = item['status']?.toString().trim().toLowerCase() ?? '';
+      if (status == 'hadir' || status == 'sakit' || status == 'alpha') {
+        (row['statuses'] as Set<String>).add(status);
+      } else if (status == 'izin') {
+        (row['notes'] as Set<String>).add('Izin');
+      }
+      final notes = item['notes']?.toString().trim();
+      if (notes != null && notes.isNotEmpty) {
+        (row['notes'] as Set<String>).add(notes);
+      }
+    }
+
+    final sortedStudents = students.values.toList()
+      ..sort(
+        (first, second) =>
+            (first['name'] as String).compareTo(second['name'] as String),
+      );
+    return [
+      for (var index = 0; index < sortedStudents.length; index++)
+        [
+          '${index + 1}',
+          sortedStudents[index]['name'] as String,
+          if ((sortedStudents[index]['statuses'] as Set<String>).contains(
+            'hadir',
+          ))
+            'X'
+          else
+            '',
+          if ((sortedStudents[index]['statuses'] as Set<String>).contains(
+            'sakit',
+          ))
+            'X'
+          else
+            '',
+          if ((sortedStudents[index]['statuses'] as Set<String>).contains(
+            'alpha',
+          ))
+            'X'
+          else
+            '',
+          (sortedStudents[index]['notes'] as Set<String>).join(', '),
+        ],
+    ];
+  }
+
+  Map<String, dynamic> _classDataForReport(
+    String className,
+    List<Map<String, dynamic>> attendances,
+  ) {
+    Map<String, dynamic>? listedClass;
+    for (final classData in _classList) {
+      if (classData['class_name']?.toString() == className) {
+        listedClass = classData;
+        break;
+      }
+    }
+    if (attendances.isNotEmpty) {
+      final journal = asMap(attendances.first['journal']);
+      final schedule = asMap(journal['schedule']);
+      final scheduleClass = asMap(schedule['class']);
+      if (scheduleClass.isNotEmpty) {
+        return {...?listedClass, ...scheduleClass};
+      }
+      final studentClass = asMap(asMap(attendances.first['student'])['class']);
+      if (studentClass.isNotEmpty) {
+        return {...?listedClass, ...studentClass};
+      }
+    }
+    return listedClass ?? {};
+  }
+
+  String _homeroomTeacherName(
+    String className,
+    Map<String, dynamic> classData,
+  ) {
+    String? nameFrom(dynamic value) {
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+      final person = asMap(value);
+      for (final key in ['fullname', 'name', 'full_name']) {
+        final name = person[key]?.toString().trim();
+        if (name != null && name.isNotEmpty) return name;
+      }
+      return null;
+    }
+
+    for (final key in [
+      'wali_kelas_name',
+      'wali_name',
+      'homeroom_teacher_name',
+      'homeroom_name',
+    ]) {
+      final name = nameFrom(classData[key]);
+      if (name != null) return name;
+    }
+    for (final key in [
+      'wali_kelas',
+      'waliKelas',
+      'wali_kelas_user',
+      'homeroom_teacher',
+      'homeroomTeacher',
+      'homeroom',
+    ]) {
+      final value = classData[key];
+      final name = nameFrom(value) ?? nameFrom(asMap(value)['user']);
+      if (name != null) return name;
+    }
+    final user = widget.user;
+    if (_isWaliKelasOnly &&
+        _waliClassName == className &&
+        user != null &&
+        user.fullname.trim().isNotEmpty) {
+      return user.fullname.trim();
+    }
+    return 'Belum ditentukan';
   }
 
   Future<void> _selectDate() async {
@@ -416,15 +656,15 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
               ),
               const Spacer(),
               TextButton.icon(
-                onPressed: _exporting ? null : _exportReport,
+                onPressed: _exporting || _loading ? null : _exportReport,
                 icon: _exporting
                     ? const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.download_outlined),
-                label: const Text('XLSX'),
+                    : const Icon(Icons.picture_as_pdf_outlined),
+                label: const Text('PDF'),
               ),
             ],
           ),
