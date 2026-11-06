@@ -5,9 +5,7 @@ import '../services/auth_service.dart';
 import '../theme/scp_theme.dart';
 import '../widgets/dashboard_kit.dart';
 import 'bk/pending_leaves_screen.dart';
-import 'dashboard/children_tab.dart';
 import 'dashboard/guru_home_tab.dart';
-import 'dashboard/ortu_home_tab.dart';
 import 'dashboard/siswa_home_tab.dart';
 import 'dashboard/verifikator_home_tab.dart';
 import 'attendance_report_screen.dart';
@@ -20,6 +18,7 @@ import 'profile_screen.dart';
 import 'schedules/role_schedule_screen.dart';
 import 'siswa/my_leaves_screen.dart';
 import '../widgets/school_logo.dart';
+import '../utils/format.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserModel user;
@@ -90,18 +89,18 @@ class _HomeScreenState extends State<HomeScreen> {
         ProfileScreen(user: user, embedded: true),
       ];
     }
-    if (user.isSiswa) {
+    if (user.isSiswa || user.isOrangTua) {
+      final child = user.isOrangTua && user.children.isNotEmpty
+          ? user.children.first
+          : null;
       return [
-        SiswaHomeTab(user: user, onNavigateTab: _navigateToTab),
-        RoleScheduleScreen(user: user, embedded: true),
+        SiswaHomeTab(
+          user: user,
+          onNavigateTab: _navigateToTab,
+          isParent: user.isOrangTua,
+        ),
+        RoleScheduleScreen(user: user, child: child, embedded: true),
         const MyLeavesScreen(),
-        ProfileScreen(user: user, embedded: true),
-      ];
-    }
-    if (user.isOrangTua) {
-      return [
-        OrtuHomeTab(user: user, onNavigateTab: _navigateToTab),
-        ChildrenTab(user: user),
         ProfileScreen(user: user, embedded: true),
       ];
     }
@@ -178,17 +177,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ScpNavItem(Icons.event_note_rounded, 'Jadwal'),
       ];
     }
-    if (user.isSiswa) {
+    if (user.isSiswa || user.isOrangTua) {
       return const [
         ScpNavItem(Icons.home_rounded, 'Home'),
         ScpNavItem(Icons.calendar_month_rounded, 'Jadwal'),
         ScpNavItem(Icons.description_outlined, 'Izin'),
-      ];
-    }
-    if (user.isOrangTua) {
-      return const [
-        ScpNavItem(Icons.home_rounded, 'Home'),
-        ScpNavItem(Icons.family_restroom_rounded, 'Anak'),
       ];
     }
     if (user.isWaliKelas) {
@@ -506,7 +499,7 @@ class _HomeScreenState extends State<HomeScreen> {
           (widget.user.isGuru ||
                   widget.user.isWaliKelas ||
                   widget.user.isGuruBK) &&
-              _nextSchedule != null
+              _nextSchedule != null && !scheduleNotStarted(_nextSchedule!)
           ? FloatingActionButton.extended(
               tooltip: 'Isi Jurnal Mengajar',
               onPressed: () => Navigator.push(

@@ -11,12 +11,14 @@ class RoleScheduleScreen extends StatefulWidget {
   final UserModel user;
   final Map<String, dynamic>? child;
   final bool embedded;
+  final ApiService? api;
 
   const RoleScheduleScreen({
     super.key,
     required this.user,
     this.child,
     this.embedded = false,
+    this.api,
   });
 
   @override
@@ -24,7 +26,7 @@ class RoleScheduleScreen extends StatefulWidget {
 }
 
 class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
-  final _api = ApiService();
+  late final ApiService _api;
   bool _loading = true;
   int _selectedView = 0;
   String _day = '';
@@ -69,6 +71,7 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
   @override
   void initState() {
     super.initState();
+    _api = widget.api ?? ApiService();
     _load();
   }
 

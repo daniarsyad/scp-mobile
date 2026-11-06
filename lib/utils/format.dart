@@ -76,10 +76,23 @@ Map<String, dynamic> asMap(dynamic value) {
 
 bool journalFilledToday(Map schedule) {
   final journals = schedule['journals'];
-  if (journals is! List) return false;
+  if (journals is! List || journals.isEmpty) return false;
   final today = todayIso();
   for (final item in journals) {
-    if (item is Map && (item['date'] ?? '').toString().startsWith(today)) {
+    if (item is! Map) continue;
+    final dateStr = (item['date'] ?? '').toString();
+    final createdStr = (item['created_at'] ?? '').toString();
+    if (dateStr.startsWith(today) || createdStr.startsWith(today)) {
+      return true;
+    }
+    try {
+      final parsed = DateTime.tryParse(dateStr)?.toLocal();
+      if (parsed != null &&
+          '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}' == today) {
+        return true;
+      }
+    } catch (_) {}
+    if (item['id'] != null) {
       return true;
     }
   }
@@ -88,10 +101,23 @@ bool journalFilledToday(Map schedule) {
 
 Map<String, dynamic>? journalForToday(Map schedule) {
   final journals = schedule['journals'];
-  if (journals is! List) return null;
+  if (journals is! List || journals.isEmpty) return null;
   final today = todayIso();
   for (final item in journals) {
-    if (item is Map && (item['date'] ?? '').toString().startsWith(today)) {
+    if (item is! Map) continue;
+    final dateStr = (item['date'] ?? '').toString();
+    final createdStr = (item['created_at'] ?? '').toString();
+    if (dateStr.startsWith(today) || createdStr.startsWith(today)) {
+      return Map<String, dynamic>.from(item);
+    }
+    try {
+      final parsed = DateTime.tryParse(dateStr)?.toLocal();
+      if (parsed != null &&
+          '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}' == today) {
+        return Map<String, dynamic>.from(item);
+      }
+    } catch (_) {}
+    if (item['id'] != null) {
       return Map<String, dynamic>.from(item);
     }
   }
@@ -102,4 +128,26 @@ int journalTotal(Map schedule) {
   final journals = schedule['journals'];
   if (journals is List) return journals.length;
   return 0;
+}
+int? _minutesOfDay(dynamic value) {
+  if (value == null) return null;
+  final text = value.toString().trim();
+  if (text.isEmpty || text == '-') return null;
+  final parts = text.split(':');
+  if (parts.length < 2) return null;
+  final h = int.tryParse(parts[0].trim());
+  final m = int.tryParse(parts[1].trim());
+  if (h == null || m == null) return null;
+  return h * 60 + m;
+}
+
+/// True jika jam mulai jadwal belum tiba (jadwal belum boleh dilihat/diisi).
+/// Mengambil start_time langsung atau dari objek period.
+bool scheduleNotStarted(Map schedule, [DateTime? now]) {
+  final dynamic rawStart = schedule['start_time'] ??
+      (schedule['period'] is Map ? schedule['period']['start_time'] : null);
+  final start = _minutesOfDay(rawStart);
+  if (start == null) return false;
+  final current = now ?? DateTime.now();
+  return (current.hour * 60 + current.minute) < start;
 }

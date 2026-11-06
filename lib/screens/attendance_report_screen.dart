@@ -29,14 +29,26 @@ class AttendanceReportScreen extends StatefulWidget {
 class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   final _api = ApiService();
   DateTime _date = DateTime.now();
+  DateTimeRange _range = DateTimeRange(
+    start: DateUtils.dateOnly(DateTime.now()),
+    end: DateUtils.dateOnly(DateTime.now()),
+  );
   bool _loading = true;
+  bool _filtersLoading = true;
   String? _error;
+  String? _filterError;
   List<Map<String, dynamic>> _attendances = [];
   List<Map<String, dynamic>> _classList = [];
+  Map<String, dynamic> _filterOptions = {};
   Map<String, dynamic> _summary = {};
   List<Map<String, dynamic>> _studentSummary = [];
-  bool _monthly = false;
+  bool _dateRangeMode = false;
   bool _exporting = false;
+  String _selectedClassId = '';
+  String _selectedGrade = '';
+  String _selectedMajor = '';
+  String _selectedSection = '';
+  String _selectedTeacherId = '';
   String _selectedPeriodId = '';
 
   // Filter states
@@ -62,7 +74,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   @override
   void initState() {
     super.initState();
-    _loadClasses();
+    if (!_isWaliKelasOnly) _loadFilters();
     _load();
   }
 
@@ -72,18 +84,33 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     super.dispose();
   }
 
-  Future<void> _loadClasses() async {
-    try {
-      final res = await _api.get(ApiConfig.classes);
-      if (res['success'] == true && mounted) {
-        final data = res['data'];
-        if (data is List) {
-          setState(() {
-            _classList = data.map(asMap).toList();
-          });
-        }
-      }
-    } catch (_) {}
+  Future<void> _loadFilters() async {
+    final result = await _api.get(ApiConfig.attendanceReportFilters);
+    if (!mounted) return;
+    if (result['success'] != true) {
+      setState(() {
+        _filtersLoading = false;
+        _filterError = result['message']?.toString().isNotEmpty == true
+            ? result['message'].toString()
+            : 'Gagal memuat opsi filter laporan presensi.';
+      });
+      return;
+    }
+
+    final data = asMap(result['data']);
+    final filters = asMap(data['filters']).isNotEmpty
+        ? asMap(data['filters'])
+        : data;
+    final classes = _optionsFrom(filters, ['classes', 'class']);
+    setState(() {
+      _filtersLoading = false;
+      _filterOptions = filters;
+      _classList = [
+        for (final option in classes)
+          {'id': option.id, 'class_name': option.name},
+      ];
+      _filterError = null;
+    });
   }
 
   Future<void> _load() async {
@@ -116,7 +143,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         _studentSummary = asList(
           result['student_summary'] ?? nestedData['student_summary'],
         ).map(asMap).toList();
-        final availablePeriodIds = _getAvailablePeriods()
+        final availablePeriodIds = _options(['periods', 'period'])
             .map((period) => period.id)
             .toSet();
         if (!availablePeriodIds.contains(_selectedPeriodId)) {
@@ -134,26 +161,134 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
   Map<String, String> _reportParams() {
     final params = <String, String>{
-      if (_monthly)
-        'month':
-            '${_date.year.toString().padLeft(4, '0')}-'
-            '${_date.month.toString().padLeft(2, '0')}'
-      else
+      if (_dateRangeMode) ...{
+        'from_date': _dateString(_range.start),
+        'to_date': _dateString(_range.end),
+      } else
         'date': _dateValue,
     };
-    if (!_isWaliKelasOnly && _selectedClass != 'Semua Kelas') {
-      for (final item in _classList) {
-        if (item['class_name']?.toString() == _selectedClass &&
-            item['id'] != null) {
-          params['class_id'] = item['id'].toString();
-          break;
-        }
-      }
+    if (!_isWaliKelasOnly && _selectedClassId.isNotEmpty) {
+      params['class_id'] = _selectedClassId;
+    }
+    if (_selectedGrade.isNotEmpty) {
+      params['grade'] = _selectedGrade;
+    }
+    if (_selectedMajor.isNotEmpty) {
+      params['major'] = _selectedMajor;
+    }
+    if (_selectedSection.isNotEmpty) {
+      params['section'] = _selectedSection;
+    }
+    if (_selectedTeacherId.isNotEmpty) {
+      params['teacher_id'] = _selectedTeacherId;
     }
     if (_selectedPeriodId.isNotEmpty) {
       params['period_id'] = _selectedPeriodId;
     }
     return params;
+  }
+
+  String _dateString(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
+
+  List<({String id, String name})> _options(List<String> keys) =>
+      _optionsFrom(_filterOptions, keys);
+
+  List<({String id, String name})> get _gradeOptions =>
+      _options(['grades', 'grade'])
+          .where((option) => const {'X', 'XI', 'XII'}.contains(option.id))
+          .toList();
+
+  List<({String id, String name})> _optionsFrom(
+    Map<String, dynamic> source,
+    List<String> keys,
+  ) {
+    dynamic values;
+    for (final key in keys) {
+      if (source[key] != null) {
+        values = source[key];
+        break;
+      }
+    }
+    if (values is Map && values['data'] is List) values = values['data'];
+    if (values is! List) return [];
+    final result = <({String id, String name})>[];
+    for (final value in values) {
+      if (value is String || value is num) {
+        final text = value.toString();
+        result.add((id: text, name: text));
+        continue;
+      }
+      final item = asMap(value);
+      final id =
+          item['id']?.toString() ??
+          item['value']?.toString() ??
+          item['class_id']?.toString() ??
+          item['teacher_id']?.toString() ??
+          item['period_id']?.toString() ??
+          item['grade']?.toString() ??
+          item['major']?.toString() ??
+          item['section']?.toString();
+      final name =
+          item['class_name']?.toString() ??
+          item['name']?.toString() ??
+          item['label']?.toString() ??
+          item['grade']?.toString() ??
+          item['major']?.toString() ??
+          item['section']?.toString() ??
+          item['period_name']?.toString() ??
+          item['teacher_name']?.toString() ??
+          item['section_name']?.toString() ??
+          item['major_name']?.toString() ??
+          item['grade_name']?.toString() ??
+          item['fullname']?.toString() ??
+          item['title']?.toString();
+      if (id != null && id.isNotEmpty && name != null && name.isNotEmpty) {
+        result.add((id: id, name: name));
+      }
+    }
+    return result;
+  }
+
+  Widget _serverFilter({
+    required String label,
+    required List<({String id, String name})> options,
+    required String selected,
+    required ValueChanged<String> onChanged,
+  }) {
+    if (options.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DropdownButtonFormField<String>(
+        initialValue: options.any((option) => option.id == selected)
+            ? selected
+            : '',
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        items: [
+          DropdownMenuItem(value: '', child: Text('Semua $label')),
+          for (final option in options)
+            DropdownMenuItem(value: option.id, child: Text(option.name)),
+        ],
+        onChanged: (value) {
+          onChanged(value ?? '');
+          _load();
+        },
+      ),
+    );
+  }
+
+  String _classIdForName(String name) {
+    for (final item in _classList) {
+      if (item['class_name']?.toString() == name) {
+        return item['id']?.toString() ?? '';
+      }
+    }
+    return '';
   }
 
   Future<void> _exportReport() async {
@@ -206,7 +341,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                 children: [
                   pw.Expanded(
                     child: pw.Text(
-                      'Tanggal: ${_monthly ? '${_date.year}-${_date.month.toString().padLeft(2, '0')}' : _displayDate()}',
+                      'Tanggal: ${_displayDate()}',
                       style: const pw.TextStyle(fontSize: 10),
                     ),
                   ),
@@ -278,8 +413,8 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         );
       }
 
-      final filename = _monthly
-          ? 'rekap-presensi-${_date.year}-${_date.month.toString().padLeft(2, '0')}'
+      final filename = _dateRangeMode
+          ? 'rekap-presensi-${_dateString(_range.start)}-${_dateString(_range.end)}'
           : 'rekap-presensi-$_dateValue';
       final savedPath = await FileSaver.instance.saveAs(
         name: filename,
@@ -442,6 +577,19 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   }
 
   Future<void> _selectDate() async {
+    if (_dateRangeMode) {
+      final selected = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(2020),
+        lastDate: DateTime.now().add(const Duration(days: 30)),
+        initialDateRange: _range,
+      );
+      if (selected == null || !mounted) return;
+      setState(() => _range = selected);
+      await _load();
+      return;
+    }
+
     final selected = await showDatePicker(
       context: context,
       initialDate: _date,
@@ -564,9 +712,6 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       final name = c['class_name']?.toString();
       if (name != null && name.isNotEmpty) set.add(name);
     }
-    for (final a in _attendances) {
-      set.add(_getClassNameOfItem(a));
-    }
     final list = set.toList()..sort();
     return ['Semua Kelas', ...list];
   }
@@ -639,18 +784,18 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
             children: [
               ChoiceChip(
                 label: const Text('Harian'),
-                selected: !_monthly,
+                selected: !_dateRangeMode,
                 onSelected: (_) {
-                  setState(() => _monthly = false);
+                  setState(() => _dateRangeMode = false);
                   _load();
                 },
               ),
               const SizedBox(width: 8),
               ChoiceChip(
-                label: const Text('Bulanan'),
-                selected: _monthly,
+                label: const Text('Rentang'),
+                selected: _dateRangeMode,
                 onSelected: (_) {
-                  setState(() => _monthly = true);
+                  setState(() => _dateRangeMode = true);
                   _load();
                 },
               ),
@@ -807,7 +952,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _monthly ? 'Bulan Laporan' : 'Tanggal Laporan',
+                          _dateRangeMode
+                              ? 'Rentang Tanggal'
+                              : 'Tanggal Laporan',
                           style: TextStyle(
                             color: ScpColors.muted,
                             fontSize: 11,
@@ -816,9 +963,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                         ),
                         const SizedBox(height: 1),
                         Text(
-                          _monthly
-                              ? '${_date.year}-${_date.month.toString().padLeft(2, '0')}'
-                              : _displayDate(),
+                          _displayDate(),
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
@@ -893,12 +1038,22 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                       ),
                       const Spacer(),
                       if (_selectedClass != 'Semua Kelas' ||
+                          _selectedGrade.isNotEmpty ||
+                          _selectedMajor.isNotEmpty ||
+                          _selectedSection.isNotEmpty ||
+                          _selectedTeacherId.isNotEmpty ||
                           _selectedStatus != 'Semua Status' ||
+                          _selectedPeriodId.isNotEmpty ||
                           _searchQuery.isNotEmpty)
                         GestureDetector(
                           onTap: () {
                             setState(() {
                               _selectedClass = 'Semua Kelas';
+                              _selectedClassId = '';
+                              _selectedGrade = '';
+                              _selectedMajor = '';
+                              _selectedSection = '';
+                              _selectedTeacherId = '';
                               _selectedStatus = 'Semua Status';
                               _selectedPeriodId = '';
                               _searchController.clear();
@@ -951,7 +1106,12 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                         }).toList(),
                         onChanged: (val) {
                           if (val != null) {
-                            setState(() => _selectedClass = val);
+                            setState(() {
+                              _selectedClass = val;
+                              _selectedClassId = val == 'Semua Kelas'
+                                  ? ''
+                                  : _classIdForName(val);
+                            });
                             _load();
                           }
                         },
@@ -960,31 +1120,54 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  if (_getAvailablePeriods().isNotEmpty) ...[
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedPeriodId,
-                      decoration: const InputDecoration(
-                        labelText: 'Periode KBM',
-                        border: OutlineInputBorder(),
+                  if (_filterError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        _filterError!,
+                        style: const TextStyle(color: ScpColors.red),
                       ),
-                      items: [
-                        const DropdownMenuItem(
-                          value: '',
-                          child: Text('Semua periode'),
-                        ),
-                        for (final period in _getAvailablePeriods())
-                          DropdownMenuItem(
-                            value: period.id,
-                            child: Text(period.name),
-                          ),
-                      ],
-                      onChanged: (value) {
-                        setState(() => _selectedPeriodId = value ?? '');
-                        _load();
-                      },
                     ),
-                    const SizedBox(height: 10),
-                  ],
+                  if (_filtersLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 10),
+                      child: LinearProgressIndicator(),
+                    ),
+                  _serverFilter(
+                    label: 'Tingkat',
+                    options: _gradeOptions,
+                    selected: _selectedGrade,
+                    onChanged: (value) =>
+                        setState(() => _selectedGrade = value),
+                  ),
+                  _serverFilter(
+                    label: 'Jurusan',
+                    options: _options(['majors', 'major']),
+                    selected: _selectedMajor,
+                    onChanged: (value) =>
+                        setState(() => _selectedMajor = value),
+                  ),
+                  _serverFilter(
+                    label: 'Rombel',
+                    options: _options(['sections', 'section']),
+                    selected: _selectedSection,
+                    onChanged: (value) =>
+                        setState(() => _selectedSection = value),
+                  ),
+                  _serverFilter(
+                    label: 'Guru',
+                    options: _options(['teachers', 'teacher']),
+                    selected: _selectedTeacherId,
+                    onChanged: (value) =>
+                        setState(() => _selectedTeacherId = value),
+                  ),
+                  _serverFilter(
+                    label: 'Periode',
+                    options: _options(['periods', 'period']),
+                    selected: _selectedPeriodId,
+                    onChanged: (value) =>
+                        setState(() => _selectedPeriodId = value),
+                  ),
 
                   // Search Bar
                   TextField(
@@ -1246,26 +1429,6 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     );
   }
 
-  List<({String id, String name})> _getAvailablePeriods() {
-    final periods = <String, String>{};
-    for (final item in _attendances) {
-      final schedule = asMap(asMap(item['journal'])['schedule']);
-      final period = asMap(schedule['period']);
-      final id = (period['id'] ?? schedule['period_id'])?.toString();
-      if (id == null || id.isEmpty) continue;
-      final name =
-          period['name']?.toString() ??
-          period['period_name']?.toString() ??
-          schedule['period_name']?.toString() ??
-          'Periode $id';
-      periods[id] = name;
-    }
-    return periods.entries
-        .map((entry) => (id: entry.key, name: entry.value))
-        .toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
-  }
-
   int _summaryInt(List<String> keys) {
     for (final key in keys) {
       final value = _summary[key];
@@ -1346,6 +1509,10 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   }
 
   String _displayDate() {
+    if (_dateRangeMode) {
+      return '${formatShortDate(_dateString(_range.start))} - '
+          '${formatShortDate(_dateString(_range.end))}';
+    }
     final short = formatShortDate(_dateValue);
     return '$short ${_date.year}';
   }

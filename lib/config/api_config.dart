@@ -1,7 +1,20 @@
 class ApiConfig {
+  // ===========================================================================
+  // KONFIGURASI BASE URL API
+  // ===========================================================================
+  // Pilih salah satu mode di bawah ini sesuai lingkungan pengujian:
+  // - Mode Hosting: 'https://nama-domain-anda.com/api'
+  // - Mode Emulator Android: 'http://10.0.2.2:8000/api'
+  // - Mode HP Fisik (Wi-Fi Laptop): 'http://192.168.x.x:8000/api'
+  // - Mode Web / Localhost: 'http://127.0.0.1:8000/api'
+  
+  // static const String _defaultUrl = 'https://nama-domain-anda.com/api'; // Mode Hosting
+  // static const String _defaultUrl = 'http://10.0.2.2:8000/api'; // Mode Emulator Android
+  static const String _defaultUrl = 'http://127.0.0.1:8000/api'; // Mode Lokal / Web
+
   static const String baseUrl = String.fromEnvironment(
     'SCP_API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000/api',
+    defaultValue: _defaultUrl,
   );
 
   static const String login = '/login';
@@ -22,9 +35,11 @@ class ApiConfig {
   static const String mySchedules = '/schedules/my';
   static const String schedulesToday = '/schedules/today';
 
+
   static const String journals = '/journals';
   static const String myJournals = '/journals/my';
   static const String journalMonitor = '/journals/monitor';
+  static const String dashboardToday = '/dashboard/today';
 
   static const String leaveRequests = '/leave-requests';
   static const String myLeaveRequests = '/leave-requests/my';
@@ -33,6 +48,7 @@ class ApiConfig {
 
   static const String attendanceByJournal = '/attendances/journal';
   static const String attendanceReport = '/attendances/report';
+  static const String attendanceReportFilters = '/attendances/report/filters';
   static const String attendanceUpdate = '/attendances';
   static const String myAttendances = '/attendances/my';
 }

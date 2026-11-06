@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'screens/splash_screen.dart';
+import 'services/api_service.dart';
 import 'services/app_theme_controller.dart';
 import 'theme/scp_theme.dart';
 
@@ -22,6 +23,7 @@ class ScpApp extends StatelessWidget {
     return AnimatedBuilder(
       animation: AppThemeController.instance,
       builder: (context, _) => MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'SCP School',
         debugShowCheckedModeBanner: false,
         theme: scpTheme(),

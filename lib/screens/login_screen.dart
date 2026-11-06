@@ -15,7 +15,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _username = TextEditingController();
+  final _identifier = TextEditingController();
   final _password = TextEditingController();
   final _auth = AuthService();
   bool _loading = false;
@@ -23,11 +23,13 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   Future<void> _login() async {
-    final usernameText = _username.text.trim();
+    final identifierText = _identifier.text.trim();
     final passwordText = _password.text;
 
-    if (usernameText.isEmpty || passwordText.isEmpty) {
-      setState(() => _error = 'Username dan password wajib diisi');
+    if (identifierText.isEmpty || passwordText.isEmpty) {
+      setState(
+        () => _error = 'NIS, NIP, atau username dan password wajib diisi',
+      );
       return;
     }
 
@@ -36,9 +38,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
 
-    final result = await _auth.login(usernameText, passwordText);
+    final result = await _auth.login(identifierText, passwordText);
 
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
     if (!mounted) return;
 
     if (result['success'] == true) {
@@ -61,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _username.dispose();
+    _identifier.dispose();
     _password.dispose();
     super.dispose();
   }
@@ -149,11 +151,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         // Username Field
                         TextField(
-                          controller: _username,
+                          controller: _identifier,
                           textInputAction: TextInputAction.next,
                           decoration: InputDecoration(
-                            labelText: 'Username atau Email',
-                            hintText: 'Masukkan username',
+                            labelText: 'NIS Siswa / NIP / Username',
+                            hintText: 'Masukkan NIS, NIP, atau username',
                             prefixIcon: const Icon(
                               Icons.person_outline_rounded,
                               size: 20,

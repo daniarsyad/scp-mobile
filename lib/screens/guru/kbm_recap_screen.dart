@@ -88,6 +88,14 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
         ),
       );
     } else {
+      if (scheduleNotStarted(schedule)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Jurnal baru dapat diisi saat jam pelajaran dimulai.'),
+          ),
+        );
+        return;
+      }
       await Navigator.push(
         context,
         MaterialPageRoute(

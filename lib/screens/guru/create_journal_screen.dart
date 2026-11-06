@@ -290,6 +290,11 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
   }
 
   Future<void> _submit() async {
+    if (scheduleNotStarted(widget.schedule)) {
+      final start = formatTime(widget.schedule['start_time']);
+      setState(() => _error = 'Jurnal belum dapat disimpan karena jam pelajaran belum dimulai ($start).');
+      return;
+    }
     final draft = _draft;
     if (draft == null) return;
     if (_submissionUncertain && !draft.submissionAttempted) {
@@ -683,19 +688,43 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
           const SizedBox(height: 12),
           Text(_error!, style: const TextStyle(color: Colors.red)),
         ],
+        if (scheduleNotStarted(widget.schedule))
+          Container(
+            margin: const EdgeInsets.only(top: 8, bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFECDD3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.lock_clock_rounded, color: Color(0xFFB91C1C)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Jadwal KBM ini belum dimulai (Pukul ${formatTime(widget.schedule['start_time'])}). Jurnal hanya dapat diisi saat jam pelajaran berlangsung.',
+                    style: const TextStyle(color: Color(0xFFB91C1C), fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
         const SizedBox(height: 16),
         FilledButton.icon(
-          onPressed: _submitting || draft == null ? null : _submit,
+          onPressed: _submitting || draft == null || scheduleNotStarted(widget.schedule) ? null : _submit,
           icon: _submitting
               ? const SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(Icons.cloud_upload_outlined),
+              : Icon(scheduleNotStarted(widget.schedule) ? Icons.lock_clock_rounded : Icons.cloud_upload_outlined),
           label: Text(
             _submitting
                 ? 'Mengirim...'
+                : scheduleNotStarted(widget.schedule)
+                ? 'Belum Masuk Jam Pelajaran'
                 : locked
                 ? 'Coba Lagi'
                 : 'Selesai & Simpan Jurnal',
