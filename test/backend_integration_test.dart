@@ -421,4 +421,60 @@ void main() {
     expect(find.textContaining('Kelas X RPL 1'), findsOneWidget);
     expect(find.textContaining('Kelas X RPL 2'), findsOneWidget);
   });
+
+  testWidgets('Orang Tua dashboard displays child info, switcher, and passes student_id', (
+    tester,
+  ) async {
+    final requests = <http.Request>[];
+    final parentUser = UserModel(
+      id: 100,
+      username: 'ortu.17802',
+      fullname: 'Bpk Orang Tua',
+      roleId: 4,
+      roleName: 'Orang Tua',
+      children: [
+        {
+          'id': 16582,
+          'fullname': 'Dani Arsyad Razak',
+          'nis': '17802',
+          'class_id': 6,
+          'class_name': 'XII RPL 2',
+        },
+      ],
+    );
+
+    final api = ApiService(
+      client: MockClient((request) async {
+        requests.add(request);
+        if (request.url.path.contains('/leave-requests/my')) {
+          return http.Response(jsonEncode({'success': true, 'data': []}), 200);
+        }
+        if (request.url.path.contains('/dashboard/today')) {
+          return http.Response(jsonEncode({'success': true, 'data': []}), 200);
+        }
+        if (request.url.path.contains('/attendances/my')) {
+          return http.Response(jsonEncode({'success': true, 'data': []}), 200);
+        }
+        return http.Response(jsonEncode({'success': true, 'data': []}), 200);
+      }),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SiswaHomeTab(
+            user: parentUser,
+            isParent: true,
+            api: api,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Bpk Orang Tua'), findsOneWidget);
+    expect(find.textContaining('Dani Arsyad Razak'), findsWidgets);
+    expect(find.textContaining('XII RPL 2'), findsWidgets);
+    expect(find.byType(ChoiceChip), findsOneWidget);
+  });
 }

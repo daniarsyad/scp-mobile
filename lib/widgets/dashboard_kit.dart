@@ -79,6 +79,7 @@ class ScpGreeting extends StatelessWidget {
   final String name;
   final String? roleName;
   final String? className;
+  final VoidCallback? onEditProfile;
 
   const ScpGreeting({
     super.key,
@@ -86,6 +87,7 @@ class ScpGreeting extends StatelessWidget {
     required this.name,
     this.roleName,
     this.className,
+    this.onEditProfile,
   });
 
   @override
@@ -94,6 +96,7 @@ class ScpGreeting extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: Column(
@@ -122,8 +125,53 @@ class ScpGreeting extends StatelessWidget {
                 ],
               ),
             ),
-            if (roleName != null)
-              ScpRoleBadge(roleName: roleName!, className: className),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (roleName != null)
+                  ScpRoleBadge(roleName: roleName!, className: className),
+                if (onEditProfile != null) ...[
+                  const SizedBox(height: 6),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: onEditProfile,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: ScpColors.blueLight,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: ScpColors.blue.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.edit_outlined, size: 12, color: ScpColors.blue),
+                            SizedBox(width: 4),
+                            Text(
+                              'Edit Profil',
+                              style: TextStyle(
+                                color: ScpColors.blue,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
       ],

@@ -20,6 +20,7 @@ class ApiConfig {
   static const String login = '/login';
   static const String logout = '/logout';
   static const String me = '/me';
+  static const String profile = '/profile';
   static const String register = '/register';
   static const String classes = '/classes';
   static const String roles = '/roles';

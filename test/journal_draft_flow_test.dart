@@ -83,7 +83,7 @@ void main() {
     await tester.tap(find.text('Ambil foto'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Siswa Contoh'),
+      find.textContaining('Siswa Contoh'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
@@ -106,7 +106,7 @@ void main() {
     await tester.tap(find.text('Selesai & Simpan Jurnal'));
     await tester.pumpAndSettle();
 
-    expect(requests, hasLength(2));
+    expect(requests, hasLength(1));
     final submit = requests.first;
     final submitBody = utf8.decode(submit.bodyBytes, allowMalformed: true);
     expect(submit.method, 'POST');
@@ -171,7 +171,7 @@ void main() {
 
     expect(requests, hasLength(1));
     expect(requests.single.url.path, endsWith('/classes'));
-    expect(find.text('Siswa dari Daftar Kelas'), findsOneWidget);
+    expect(find.textContaining('Siswa dari Daftar Kelas'), findsOneWidget);
     expect(find.textContaining('Roster siswa tidak ditemukan'), findsNothing);
     final draft = await store.load(7, 24, todayIso());
     expect(draft, isNotNull);

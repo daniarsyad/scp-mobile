@@ -37,7 +37,18 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
   void initState() {
     super.initState();
     _api = widget.api ?? ApiService();
+    LiveRefresh.leaves.addListener(_onLeavesUpdate);
     _load();
+  }
+
+  @override
+  void dispose() {
+    LiveRefresh.leaves.removeListener(_onLeavesUpdate);
+    super.dispose();
+  }
+
+  void _onLeavesUpdate() {
+    if (mounted) _load();
   }
 
   Future<void> _load() async {
@@ -109,8 +120,6 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
   }
 
   Future<void> _verify(int id, String status, String studentName) async {
-    if (widget.isBk) return;
-
     final isApprove = status == 'Approved';
     final decision = await showDialog<Map<String, String>>(
       context: context,
@@ -141,8 +150,11 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
         SnackBar(
           content: Text(result['message'] ?? 'Gagal memproses verifikasi'),
           backgroundColor: ScpColors.red,
+          duration: const Duration(seconds: 4),
         ),
       );
+      LiveRefresh.pingLeaves();
+      _load();
     }
   }
 
@@ -322,7 +334,7 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
                           ),
                         ),
                         Text(
-                          'Guru BK dapat memantau pengajuan izin siswa dari semua kelas.',
+                          'Menampilkan antrean pengajuan izin siswa khusus dari kelas binaan Anda.',
                           style: TextStyle(
                             fontSize: 11,
                             color: Color(0xFF5B21B6),
@@ -622,8 +634,7 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
               ),
             ],
 
-            if (!widget.isBk &&
-                (cancelledAt == null || cancelledAt.isEmpty)) ...[
+            if (cancelledAt == null || cancelledAt.isEmpty) ...[
               const SizedBox(height: 14),
               Row(
                 children: [

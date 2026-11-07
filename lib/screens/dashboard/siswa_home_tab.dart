@@ -8,6 +8,7 @@ import '../../utils/format.dart';
 import '../../utils/live_refresh.dart';
 import '../../widgets/dashboard_kit.dart';
 import 'attendance_history_screen.dart';
+import '../edit_profile_screen.dart';
 import '../ortu/create_leave_ortu_screen.dart';
 import '../siswa/create_leave_screen.dart';
 
@@ -15,6 +16,10 @@ class SiswaHomeTab extends StatefulWidget {
   final UserModel user;
   final ValueChanged<int>? onNavigateTab;
   final bool isParent;
+  final int? selectedStudentId;
+  final ValueChanged<int>? onSelectStudent;
+  final ValueChanged<List<Map<String, dynamic>>>? onChildrenUpdated;
+  final ValueChanged<UserModel>? onProfileUpdated;
   final ApiService? api;
 
   const SiswaHomeTab({
@@ -22,6 +27,10 @@ class SiswaHomeTab extends StatefulWidget {
     required this.user,
     this.onNavigateTab,
     this.isParent = false,
+    this.selectedStudentId,
+    this.onSelectStudent,
+    this.onChildrenUpdated,
+    this.onProfileUpdated,
     this.api,
   });
 
@@ -35,6 +44,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
   List<Map<String, dynamic>> _leaves = [];
   List<Map<String, dynamic>> _schedules = [];
   List<Map<String, dynamic>> _attendanceRecords = [];
+  List<Map<String, dynamic>> _dynamicChildren = [];
   int? _selectedStudentId;
   int _hadir = 0;
   bool _attendanceLoaded = false;
@@ -42,23 +52,37 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
   String? _attendanceError;
   String? _leaveError;
 
-  List<Map<String, dynamic>> get _children => widget.user.children;
+  List<Map<String, dynamic>> get _children =>
+      _dynamicChildren.isNotEmpty ? _dynamicChildren : widget.user.children;
 
   @override
   void initState() {
     super.initState();
     _api = widget.api ?? ApiService();
     if (widget.isParent) {
-      for (final child in _children) {
-        final childId = _readId(child['id']);
-        if (childId != null) {
-          _selectedStudentId = childId;
-          break;
+      _selectedStudentId = widget.selectedStudentId;
+      if (_selectedStudentId == null) {
+        for (final child in _children) {
+          final childId = _readId(child['id']);
+          if (childId != null) {
+            _selectedStudentId = childId;
+            break;
+          }
         }
       }
     }
     LiveRefresh.leaves.addListener(_onPing);
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant SiswaHomeTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedStudentId != null &&
+        widget.selectedStudentId != _selectedStudentId) {
+      setState(() => _selectedStudentId = widget.selectedStudentId);
+      _load();
+    }
   }
 
   @override
@@ -73,6 +97,24 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
 
   Future<void> _load({bool silent = false}) async {
     if (!silent && mounted) setState(() => _loading = true);
+
+    // Auto-fetch children if empty for parent
+    if (widget.isParent && _children.isEmpty) {
+      final childrenRes = await _api.get(ApiConfig.children);
+      if (childrenRes['success'] == true) {
+        final list = asList(childrenRes['data']).map(asMap).toList();
+        if (mounted) {
+          setState(() {
+            _dynamicChildren = list;
+            if (_selectedStudentId == null && list.isNotEmpty) {
+              _selectedStudentId = _readId(list.first['id']);
+              widget.onSelectStudent?.call(_selectedStudentId!);
+            }
+          });
+          widget.onChildrenUpdated?.call(list);
+        }
+      }
+    }
 
     final todayPath = widget.isParent && _selectedStudentId != null
         ? Uri(
@@ -196,11 +238,11 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
 
   @override
   Widget build(BuildContext context) {
-    final name = widget.isParent
-        ? _selectedChildName
-        : widget.user.fullname.isEmpty
-        ? 'Siswa'
-        : widget.user.fullname;
+    final greetingName = widget.isParent
+        ? (widget.user.fullname.isNotEmpty
+            ? widget.user.fullname
+            : 'Orang Tua Siswa')
+        : (widget.user.fullname.isEmpty ? 'Siswa' : widget.user.fullname);
     final approved = _countStatus('Approved');
     final pending = _countStatus('Pending');
     final percent = !_attendanceLoaded
@@ -218,13 +260,127 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
         children: [
           ScpGreeting(
             line: greetingLine(),
-            name: name,
-            roleName: 'Siswa',
+            name: greetingName,
+            roleName: widget.isParent ? 'Orang Tua' : 'Siswa',
             className: widget.isParent
-                ? _selectedChildClass
+                ? (_selectedChild != null
+                    ? 'Wali dari $_selectedChildName'
+                    : (widget.user.className ?? 'SMKN 1 Bantul'))
                 : widget.user.className,
+            onEditProfile: () async {
+              final updated = await Navigator.push<UserModel>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EditProfileScreen(
+                    user: widget.user,
+                    onProfileUpdated: widget.onProfileUpdated,
+                  ),
+                ),
+              );
+              if (updated != null) {
+                widget.onProfileUpdated?.call(updated);
+              }
+            },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+
+          if (widget.isParent && _children.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: ScpColors.line),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.family_restroom_rounded,
+                        size: 18,
+                        color: ScpColors.blue,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _children.length > 1
+                            ? 'Pilih Siswa / Anak:'
+                            : 'Data Siswa Terkait:',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: ScpColors.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _children.map((child) {
+                        final childId = _readId(child['id']);
+                        final childName =
+                            child['fullname']?.toString() ?? 'Siswa';
+                        final childClass =
+                            asMap(child['class'])['class_name']?.toString() ??
+                            child['class_name']?.toString() ??
+                            'Kelas';
+                        final isSelected = childId == _selectedStudentId;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isSelected
+                                      ? Icons.check_circle_rounded
+                                      : Icons.person_outline_rounded,
+                                  size: 15,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : ScpColors.text,
+                                ),
+                                const SizedBox(width: 6),
+                                Text('$childName ($childClass)'),
+                              ],
+                            ),
+                            selected: isSelected,
+                            selectedColor: ScpColors.blue,
+                            backgroundColor: ScpColors.surfaceAlt,
+                            labelStyle: TextStyle(
+                              color: isSelected ? Colors.white : ScpColors.text,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? ScpColors.blue
+                                  : ScpColors.line,
+                            ),
+                            onSelected: (selected) {
+                              if (selected &&
+                                  childId != null &&
+                                  childId != _selectedStudentId) {
+                                setState(() => _selectedStudentId = childId);
+                                widget.onSelectStudent?.call(childId);
+                                _load();
+                              }
+                            },
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
 
           if (_loading)
             const Padding(
@@ -234,19 +390,17 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
               ),
             )
           else ...[
-            if (widget.isParent) ...[
-              if (_children.isEmpty)
-                const ScpEmpty(
-                  message: 'Backend belum menautkan anak ke akun ini.',
-                  icon: Icons.family_restroom_outlined,
-                ),
-            ],
+            if (widget.isParent && _children.isEmpty)
+              const ScpEmpty(
+                message: 'Backend belum menautkan anak ke akun ini.',
+                icon: Icons.family_restroom_outlined,
+              ),
             ScpHeroPager(
               pages: [
                 ScpHeroData(
                   value: percent == null ? '—' : '$percent%',
                   label: 'Tingkat Kehadiran Presensi',
-                  footerTitle: widget.isParent ? _selectedChildName : name,
+                  footerTitle: widget.isParent ? _selectedChildName : greetingName,
                   footerSubtitle: widget.isParent
                       ? _selectedChildClass
                       : widget.user.className ?? 'SMKN 1 Bantul',
@@ -271,35 +425,34 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
             ScpQuickActionsGrid(
               items: [
                 ScpQuickActionItem(
+                  icon: Icons.fact_check_rounded,
+                  title: 'Rekap\nPresensi',
+                  color: ScpColors.blue,
+                  bg: ScpColors.blueLight,
+                  onTap: () => widget.onNavigateTab?.call(1),
+                ),
+                ScpQuickActionItem(
+                  icon: Icons.calendar_month_rounded,
+                  title: 'Jadwal\nPelajaran',
+                  color: ScpColors.teal,
+                  bg: ScpColors.tealCard,
+                  onTap: () => widget.onNavigateTab?.call(2),
+                ),
+                ScpQuickActionItem(
                   icon: Icons.upload_file_rounded,
                   title: widget.isParent
                       ? 'Ajukan\nIzin Anak'
                       : 'Ajukan\nIzin Siswa',
-                  color: ScpColors.blue,
-                  bg: ScpColors.blueLight,
+                  color: ScpColors.purple,
+                  bg: ScpColors.purpleCard,
                   onTap: _create,
                 ),
                 ScpQuickActionItem(
-                  icon: Icons.calendar_month_rounded,
-                  title: 'Jadwal\nHari Ini',
-                  color: ScpColors.teal,
-                  bg: ScpColors.tealCard,
-                  onTap: () => widget.onNavigateTab?.call(1),
-                ),
-                if (!widget.isParent)
-                  ScpQuickActionItem(
-                    icon: Icons.description_outlined,
-                    title: 'Riwayat\nIzin',
-                    color: ScpColors.purple,
-                    bg: ScpColors.purpleCard,
-                    onTap: () => widget.onNavigateTab?.call(2),
-                  ),
-                ScpQuickActionItem(
-                  icon: Icons.refresh_rounded,
-                  title: 'Segarkan\nData',
+                  icon: Icons.description_outlined,
+                  title: 'Riwayat\nIzin',
                   color: ScpColors.amber,
                   bg: ScpColors.amberCard,
-                  onTap: () => _load(),
+                  onTap: () => widget.onNavigateTab?.call(3),
                 ),
               ],
             ),
@@ -318,7 +471,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
                     background: ScpColors.greenCard,
                     valueColor: ScpColors.green,
                     icon: Icons.check_circle_rounded,
-                    onTap: () => widget.onNavigateTab?.call(2),
+                    onTap: () => widget.onNavigateTab?.call(3),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -329,7 +482,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
                     background: ScpColors.amberCard,
                     valueColor: ScpColors.amber,
                     icon: Icons.hourglass_empty_rounded,
-                    onTap: () => widget.onNavigateTab?.call(2),
+                    onTap: () => widget.onNavigateTab?.call(3),
                   ),
                 ),
               ],
@@ -349,7 +502,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
                 ),
                 const Spacer(),
                 TextButton(
-                  onPressed: () => widget.onNavigateTab?.call(1),
+                  onPressed: () => widget.onNavigateTab?.call(2),
                   child: const Text(
                     'Buka Jadwal',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
@@ -389,17 +542,21 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
                   child: ScpSectionHeader(title: 'Histori Presensi'),
                 ),
                 TextButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AttendanceHistoryScreen(
-                        user: widget.user,
-                        isParent: widget.isParent,
-                        student: _selectedChild,
-                        api: _api,
-                      ),
-                    ),
-                  ),
+                  onPressed: () => widget.onNavigateTab != null
+                      ? widget.onNavigateTab!(1)
+                      : Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AttendanceHistoryScreen(
+                              user: widget.user,
+                              isParent: widget.isParent,
+                              student: _selectedChild,
+                              children: _children,
+                              onSelectStudent: widget.onSelectStudent,
+                              api: _api,
+                            ),
+                          ),
+                        ),
                   child: const Text('Lihat semua'),
                 ),
               ],
@@ -433,7 +590,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
                 ),
                 const Spacer(),
                 TextButton(
-                  onPressed: () => widget.onNavigateTab?.call(2),
+                  onPressed: () => widget.onNavigateTab?.call(3),
                   child: const Text(
                     'Semua Izin',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),

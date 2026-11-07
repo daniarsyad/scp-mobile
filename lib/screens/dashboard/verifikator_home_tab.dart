@@ -8,17 +8,20 @@ import '../../utils/format.dart';
 import '../../utils/live_refresh.dart';
 import '../../utils/media_url.dart';
 import '../../widgets/dashboard_kit.dart';
+import '../edit_profile_screen.dart';
 
 class VerifikatorHomeTab extends StatefulWidget {
   final UserModel user;
   final bool isBk;
   final ValueChanged<int>? onNavigateTab;
+  final ValueChanged<UserModel>? onProfileUpdated;
 
   const VerifikatorHomeTab({
     super.key,
     required this.user,
     required this.isBk,
     this.onNavigateTab,
+    this.onProfileUpdated,
   });
 
   @override
@@ -115,6 +118,20 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
             name: name,
             roleName: role,
             className: widget.user.className,
+            onEditProfile: () async {
+              final updated = await Navigator.push<UserModel>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EditProfileScreen(
+                    user: widget.user,
+                    onProfileUpdated: widget.onProfileUpdated,
+                  ),
+                ),
+              );
+              if (updated != null) {
+                widget.onProfileUpdated?.call(updated);
+              }
+            },
           ),
           const SizedBox(height: 16),
 

@@ -250,7 +250,11 @@ class ApiService {
             : [entry.value];
         for (final error in messages) {
           if (error != null && error.toString().isNotEmpty) {
-            final errStr = error.toString();
+            final key = entry.key.toString();
+            final val = error.toString();
+            final errStr = key.isNotEmpty && !key.startsWith(RegExp(r'^\d+$'))
+                ? '$key: $val'
+                : val;
             if (!parts.contains(errStr)) {
               parts.add(errStr);
             }

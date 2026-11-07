@@ -8,6 +8,7 @@ import '../models/user_model.dart';
 import '../services/api_service.dart';
 import '../theme/scp_theme.dart';
 import '../utils/format.dart';
+import '../utils/live_refresh.dart';
 import '../widgets/dashboard_kit.dart';
 
 class AttendanceReportScreen extends StatefulWidget {
@@ -74,14 +75,48 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   @override
   void initState() {
     super.initState();
+    LiveRefresh.journals.addListener(_onLiveUpdate);
+    LiveRefresh.attendances.addListener(_onLiveUpdate);
     if (!_isWaliKelasOnly) _loadFilters();
     _load();
   }
 
+  void _onLiveUpdate() {
+    if (mounted) _load();
+  }
+
   @override
   void dispose() {
+    LiveRefresh.journals.removeListener(_onLiveUpdate);
+    LiveRefresh.attendances.removeListener(_onLiveUpdate);
     _searchController.dispose();
     super.dispose();
+  }
+
+  String _cleanSortName(String name) {
+    return name.trim().toLowerCase().replaceAll(RegExp(r'^[^a-zA-Z0-9]+'), '');
+  }
+
+  String _extractStudentSummaryName(Map<String, dynamic> student) {
+    final nested = asMap(student['student']);
+    final user = asMap(student['user']);
+    final candidate = student['fullname'] ??
+        nested['fullname'] ??
+        user['fullname'] ??
+        student['student_name'] ??
+        nested['student_name'] ??
+        student['name'] ??
+        nested['name'] ??
+        user['name'];
+    final name = candidate?.toString().trim();
+    if (name != null && name.isNotEmpty) {
+      return name;
+    }
+    final nisn = student['nisn'] ?? nested['nisn'] ?? student['nis'] ?? nested['nis'];
+    if (nisn != null && nisn.toString().isNotEmpty) {
+      return 'Siswa ()';
+    }
+    return 'Siswa';
   }
 
   Future<void> _loadFilters() async {
@@ -140,9 +175,15 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         _summary = asMap(result['summary']).isNotEmpty
             ? asMap(result['summary'])
             : asMap(nestedData['summary']);
-        _studentSummary = asList(
+        final rawSummary = asList(
           result['student_summary'] ?? nestedData['student_summary'],
         ).map(asMap).toList();
+        rawSummary.sort((a, b) {
+          final nameA = _cleanSortName(_extractStudentSummaryName(a));
+          final nameB = _cleanSortName(_extractStudentSummaryName(b));
+          return nameA.compareTo(nameB);
+        });
+        _studentSummary = rawSummary;
         final availablePeriodIds = _options(['periods', 'period'])
             .map((period) => period.id)
             .toSet();
@@ -770,6 +811,13 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       grouped.putIfAbsent(className, () => []).add(item);
     }
     final sortedClassNames = grouped.keys.toList()..sort();
+    for (final className in sortedClassNames) {
+      grouped[className]!.sort((a, b) {
+        final nameA = _cleanSortName(asMap(a['student'])['fullname']?.toString() ?? '');
+        final nameB = _cleanSortName(asMap(b['student'])['fullname']?.toString() ?? '');
+        return nameA.compareTo(nameB);
+      });
+    }
 
     final availableClasses = _getAvailableClassesForFilter();
 
@@ -1315,16 +1363,17 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           ),
           const SizedBox(height: 20),
           if (_studentSummary.isNotEmpty) ...[
-            const Text(
-              'Rekap per Siswa',
-              style: TextStyle(
+            Text(
+              'Rekap per Siswa (${_studentSummary.length} Siswa)',
+              style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
                 color: ScpColors.text,
               ),
             ),
             const SizedBox(height: 8),
-            for (final student in _studentSummary) _studentSummaryTile(student),
+            for (var i = 0; i < _studentSummary.length; i++)
+              _studentSummaryTile(_studentSummary[i], i + 1),
             const SizedBox(height: 12),
           ],
 
@@ -1421,7 +1470,8 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                     ],
                   ),
                 ),
-              for (final item in grouped[className]!) _attendanceTile(item),
+              for (var i = 0; i < grouped[className]!.length; i++)
+                _attendanceTile(grouped[className]![i], i + 1),
               const SizedBox(height: 10),
             ],
         ],
@@ -1440,28 +1490,71 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     return 0;
   }
 
-  Widget _studentSummaryTile(Map<String, dynamic> student) {
-    final name =
-        student['fullname']?.toString() ??
-        student['student_name']?.toString() ??
-        student['name']?.toString() ??
-        'Siswa';
+  Widget _studentSummaryTile(Map<String, dynamic> student, int number) {
+    final name = _extractStudentSummaryName(student);
     final present =
-        student['hadir'] ?? student['present'] ?? student['present_count'];
-    final leave = student['izin'] ?? student['leave'] ?? student['leave_count'];
-    final sick = student['sakit'] ?? student['sick'] ?? student['sick_count'];
+        student['hadir'] ?? student['present'] ?? student['present_count'] ?? 0;
+    final leave = student['izin'] ?? student['leave'] ?? student['leave_count'] ?? 0;
+    final sick = student['sakit'] ?? student['sick'] ?? student['sick_count'] ?? 0;
     final absent =
-        student['alpha'] ?? student['absent'] ?? student['alpha_count'];
+        student['alpha'] ?? student['absent'] ?? student['alpha_count'] ?? 0;
     final consecutive =
         student['consecutive_alpha'] ??
         student['consecutive_absences'] ??
         student['alpha_streak'];
-    return Card(
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ScpColors.line),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.015),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
       child: ListTile(
-        title: Text(name),
-        subtitle: Text(
-          'Hadir $present • Izin $leave • Sakit $sick • Alpha $absent'
-          '${consecutive == null ? '' : ' • Alpha beruntun $consecutive hari'}',
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        leading: Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: ScpColors.surfaceAlt,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ScpColors.line),
+          ),
+          child: Text(
+            '$number',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: ScpColors.text,
+            ),
+          ),
+        ),
+        title: Text(
+          '$number. $name',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            color: ScpColors.text,
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            'Hadir $present • Izin $leave • Sakit $sick • Alpha $absent'
+            '${consecutive != null && consecutive > 0 ? ' • Alpha beruntun $consecutive hari' : ''}',
+            style: const TextStyle(
+              fontSize: 12,
+              color: ScpColors.muted,
+            ),
+          ),
         ),
       ),
     );
@@ -1517,14 +1610,18 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     return '$short ${_date.year}';
   }
 
-  Widget _attendanceTile(Map<String, dynamic> item) {
+  Widget _attendanceTile(Map<String, dynamic> item, [int? number]) {
     final journal = asMap(item['journal']);
     final schedule = asMap(journal['schedule']);
     final student = asMap(item['student']);
     final status = (item['status']?.toString() ?? '-').trim();
     final color = _statusColor(status);
     final bg = _statusBg(status);
-    final studentName = student['fullname']?.toString() ?? 'Siswa';
+    final rawName = student['fullname']?.toString() ??
+        student['student_name']?.toString() ??
+        student['name']?.toString() ??
+        'Siswa';
+    final studentName = number != null ? '$number. $rawName' : rawName;
     final subject = schedule['subject']?.toString() ?? 'Mata Pelajaran';
     final notes = item['notes']?.toString();
 

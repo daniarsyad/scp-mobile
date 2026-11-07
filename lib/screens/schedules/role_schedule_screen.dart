@@ -10,6 +10,8 @@ import '../../widgets/dashboard_kit.dart';
 class RoleScheduleScreen extends StatefulWidget {
   final UserModel user;
   final Map<String, dynamic>? child;
+  final List<Map<String, dynamic>>? children;
+  final ValueChanged<int>? onSelectStudent;
   final bool embedded;
   final ApiService? api;
 
@@ -17,6 +19,8 @@ class RoleScheduleScreen extends StatefulWidget {
     super.key,
     required this.user,
     this.child,
+    this.children,
+    this.onSelectStudent,
     this.embedded = false,
     this.api,
   });
@@ -29,19 +33,36 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
   late final ApiService _api;
   bool _loading = true;
   int _selectedView = 0;
+  int _scheduleScope = 0; // 0: Jadwal Mengajar Saya, 1: Jadwal Kelas Binaan
   String _day = '';
+  String? _activeCycle = '2';
   List<Map<String, dynamic>> _todaySchedules = [];
   List<Map<String, dynamic>> _cycleOneSchedules = [];
   List<Map<String, dynamic>> _cycleTwoSchedules = [];
   String? _todayError;
   String? _cycleOneError;
   String? _cycleTwoError;
+  Map<String, dynamic>? _selectedChild;
+  List<Map<String, dynamic>> _dynamicChildren = [];
+
+  List<Map<String, dynamic>> get _children {
+    if (widget.children != null && widget.children!.isNotEmpty) {
+      return widget.children!;
+    }
+    if (_dynamicChildren.isNotEmpty) return _dynamicChildren;
+    return widget.user.children;
+  }
 
   bool get _isTeacher =>
-      widget.child == null && (widget.user.isGuru || widget.user.isGuruBK);
+      !widget.user.isOrangTua &&
+      widget.child == null &&
+      (widget.user.isGuru || widget.user.isGuruBK || widget.user.isWaliKelas);
+
+  bool get _isTeachingMode =>
+      widget.user.isWaliKelas ? (_scheduleScope == 0) : _isTeacher;
 
   String get _className {
-    final child = widget.child;
+    final child = _selectedChild ?? widget.child;
     if (child != null) {
       return asMap(child['class'])['class_name']?.toString() ??
           child['class_name']?.toString() ??
@@ -51,7 +72,7 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
   }
 
   int? get _classId {
-    final child = widget.child;
+    final child = _selectedChild ?? widget.child;
     if (child != null) {
       final nestedClassId = asMap(child['class'])['id'];
       return asInt(child['class_id'] ?? nestedClassId);
@@ -60,11 +81,16 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
   }
 
   String get _title {
-    if (_isTeacher) return 'Jadwal Mengajar';
-    if (widget.child != null) {
-      return 'Jadwal ${widget.child!['fullname']?.toString() ?? 'Anak'}';
+    final child = _selectedChild ?? widget.child;
+    if (child != null) {
+      return 'Jadwal ${child['fullname']?.toString() ?? 'Anak'}';
     }
-    if (widget.user.isWaliKelas) return 'Jadwal Kelas $_className';
+    if (widget.user.isWaliKelas) {
+      return _scheduleScope == 0
+          ? 'Jadwal Mengajar Saya'
+          : 'Jadwal Kelas $_className';
+    }
+    if (_isTeacher) return 'Jadwal Mengajar';
     return 'Jadwal Pelajaran';
   }
 
@@ -72,15 +98,28 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
   void initState() {
     super.initState();
     _api = widget.api ?? ApiService();
+    if (widget.user.isOrangTua) {
+      _selectedChild = widget.child ??
+          (_children.isNotEmpty ? _children.first : null);
+    }
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant RoleScheduleScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.child != oldWidget.child) {
+      setState(() => _selectedChild = widget.child);
+      _load();
+    }
   }
 
   String _schedulePath({String? cycle, bool today = false}) {
     final path = today
         ? ApiConfig.schedulesToday
-        : (_isTeacher ? ApiConfig.mySchedules : ApiConfig.schedules);
+        : (_isTeachingMode ? ApiConfig.mySchedules : ApiConfig.schedules);
     final query = <String, String>{};
-    if (!_isTeacher) {
+    if (!_isTeachingMode) {
       final classId = _classId;
       if (classId != null && classId > 0) {
         query['class_id'] = '$classId';
@@ -94,7 +133,7 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
         : Uri(path: path, queryParameters: query).toString();
   }
 
-  Future<({List<Map<String, dynamic>> schedules, String? error, String? day})>
+  Future<({List<Map<String, dynamic>> schedules, String? error, String? day, String? cycle})>
   _fetchSchedules({
     required String path,
     required String failureMessage,
@@ -107,11 +146,17 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
             ? result['message'].toString()
             : failureMessage,
         day: result['day']?.toString(),
+        cycle: result['cycle']?.toString(),
       );
     }
     final schedules = asList(result['data']).map(asMap).toList()
       ..sort(_compareSchedules);
-    return (schedules: schedules, error: null, day: result['day']?.toString());
+    return (
+      schedules: schedules,
+      error: null,
+      day: result['day']?.toString(),
+      cycle: result['cycle']?.toString(),
+    );
   }
 
   int _compareSchedules(Map<String, dynamic> a, Map<String, dynamic> b) {
@@ -133,6 +178,21 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
       _cycleOneError = null;
       _cycleTwoError = null;
     });
+
+    if (widget.user.isOrangTua && _selectedChild == null && _children.isEmpty) {
+      final childrenRes = await _api.get(ApiConfig.children);
+      if (childrenRes['success'] == true) {
+        final list = asList(childrenRes['data']).map(asMap).toList();
+        if (mounted && list.isNotEmpty) {
+          setState(() {
+            _dynamicChildren = list;
+            _selectedChild = list.first;
+          });
+          final id = asInt(list.first['id']);
+          if (id > 0) widget.onSelectStudent?.call(id);
+        }
+      }
+    }
 
     final results = await Future.wait([
       _fetchSchedules(
@@ -156,6 +216,7 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
     setState(() {
       _loading = false;
       _day = todayResult.day ?? todayDayName();
+      _activeCycle = todayResult.cycle ?? _activeCycle ?? '2';
       _todaySchedules = todayResult.schedules;
       _todayError = todayResult.error;
       _cycleOneSchedules = cycleOneResult.schedules;
@@ -292,6 +353,14 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(18, 14, 18, 32),
         children: [
+          if (widget.user.isWaliKelas) ...[
+            _scopeSelector(),
+            const SizedBox(height: 12),
+          ],
+          if (widget.user.isOrangTua && _children.isNotEmpty) ...[
+            _parentChildSelector(),
+            const SizedBox(height: 12),
+          ],
           _viewSelector(),
           const SizedBox(height: 14),
           _summaryCard(schedules.length),
@@ -319,7 +388,11 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
   }
 
   Widget _viewSelector() {
-    const labels = ['Hari Ini', 'Putaran 1', 'Putaran 2'];
+    final labels = [
+      'Hari Ini',
+      _activeCycle == '1' ? 'Putaran 1 (Aktif)' : 'Putaran 1',
+      _activeCycle == '2' ? 'Putaran 2 (Aktif)' : 'Putaran 2',
+    ];
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -362,10 +435,193 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
     );
   }
 
+  Widget _parentChildSelector() {
+    final childName = _selectedChild?['fullname']?.toString() ?? 'Anak';
+    if (_children.length <= 1) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: ScpColors.line),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.school_outlined, size: 18, color: ScpColors.blue),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Jadwal Siswa: $childName ($_className)',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: ScpColors.text,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ScpColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.family_restroom_rounded, size: 18, color: ScpColors.blue),
+              SizedBox(width: 8),
+              Text(
+                'Pilih Siswa / Anak:',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: ScpColors.muted,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _children.map((child) {
+                final id = asInt(child['id']);
+                final name = child['fullname']?.toString() ?? 'Siswa';
+                final className = asMap(child['class'])['class_name']?.toString() ??
+                    child['class_name']?.toString() ??
+                    '';
+                final label = className.isNotEmpty ? '$name ($className)' : name;
+                final isSelected = id == asInt(_selectedChild?['id']);
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(label),
+                    selected: isSelected,
+                    selectedColor: ScpColors.blue,
+                    backgroundColor: ScpColors.surfaceAlt,
+                    labelStyle: TextStyle(
+                      color: isSelected ? Colors.white : ScpColors.text,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                    side: BorderSide(
+                      color: isSelected ? ScpColors.blue : ScpColors.line,
+                    ),
+                    onSelected: (selected) {
+                      if (selected && id > 0 && id != asInt(_selectedChild?['id'])) {
+                        setState(() => _selectedChild = child);
+                        widget.onSelectStudent?.call(id);
+                        _load();
+                      }
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _scopeSelector() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ScpColors.line),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ChoiceChip(
+              label: const SizedBox(
+                width: double.infinity,
+                child: Text('👨‍🏫 Mengajar (Saya)', textAlign: TextAlign.center),
+              ),
+              selected: _scheduleScope == 0,
+              onSelected: (_) {
+                if (_scheduleScope != 0) {
+                  setState(() => _scheduleScope = 0);
+                  _load();
+                }
+              },
+              showCheckmark: false,
+              selectedColor: ScpColors.blue,
+              backgroundColor: Colors.transparent,
+              labelStyle: TextStyle(
+                color: _scheduleScope == 0 ? Colors.white : ScpColors.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              side: BorderSide.none,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: ChoiceChip(
+              label: SizedBox(
+                width: double.infinity,
+                child: Text('🏫 Kelas $_className', textAlign: TextAlign.center),
+              ),
+              selected: _scheduleScope == 1,
+              onSelected: (_) {
+                if (_scheduleScope != 1) {
+                  setState(() => _scheduleScope = 1);
+                  _load();
+                }
+              },
+              showCheckmark: false,
+              selectedColor: ScpColors.blue,
+              backgroundColor: Colors.transparent,
+              labelStyle: TextStyle(
+                color: _scheduleScope == 1 ? Colors.white : ScpColors.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              side: BorderSide.none,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _summaryCard(int count) {
-    final subtitle = _selectedView == 0
-        ? 'Hari ini: ${_day.isEmpty ? todayDayName() : _day}'
-        : 'Jadwal lengkap kelas dan mata pelajaran';
+    final String title;
+    final String subtitle;
+
+    if (_isTeachingMode) {
+      title = _selectedView == 0
+          ? 'Jadwal Mengajar Hari Ini'
+          : 'Jadwal Mengajar Putaran $_selectedView';
+      subtitle = _selectedView == 0
+          ? 'Hari ini: ${_day.isEmpty ? todayDayName() : _day} • Seluruh kelas yang diajar'
+          : 'Jadwal mengajar lengkap di seluruh kelas';
+    } else {
+      title = _selectedView == 0
+          ? 'Jadwal Pelajaran Kelas $_className Hari Ini'
+          : 'Jadwal Pelajaran Kelas $_className (Putaran $_selectedView)';
+      subtitle = _selectedView == 0
+          ? 'Hari ini: ${_day.isEmpty ? todayDayName() : _day}'
+          : 'Jadwal lengkap mata pelajaran kelas $_className';
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -385,9 +641,7 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _selectedView == 0
-                      ? 'Jadwal Pelajaran Hari Ini'
-                      : 'Jadwal Putaran $_selectedView',
+                  title,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -427,6 +681,15 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
     final teacher = asMap(schedule['teacher'])['fullname']?.toString();
     final room = asMap(schedule['room'])['room_name']?.toString();
     final day = schedule['day_of_week']?.toString();
+    final cycle = _scheduleCycle(schedule);
+
+    final details = <String>[
+      if (_selectedView != 0 && day != null && day.isNotEmpty) day,
+      if (cycle != null && _selectedView == 0) 'Putaran $cycle',
+      if (className.isNotEmpty) 'Kelas $className',
+      if (room != null && room.isNotEmpty) 'Ruang $room',
+      if (!_isTeachingMode && teacher != null && teacher.isNotEmpty) 'Guru: $teacher',
+    ];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -477,13 +740,7 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  [
-                    if (_selectedView != 0 && day != null && day.isNotEmpty)
-                      day,
-                    if (className.isNotEmpty) 'Kelas $className',
-                    if (teacher != null && teacher.isNotEmpty) teacher,
-                    if (room != null && room.isNotEmpty) 'Ruang $room',
-                  ].join(' • '),
+                  details.join('  •  '),
                   style: const TextStyle(color: ScpColors.muted, fontSize: 12),
                 ),
               ],

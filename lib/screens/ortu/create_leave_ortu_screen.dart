@@ -172,9 +172,17 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
                       border: OutlineInputBorder(),
                     ),
                     items: _children.map<DropdownMenuItem<int>>((c) {
+                      final childName = c['fullname']?.toString() ?? '-';
+                      final className = (c['class'] is Map
+                              ? c['class']['class_name']?.toString()
+                              : null) ??
+                          c['class_name']?.toString();
+                      final label = className != null && className.isNotEmpty
+                          ? '$childName ($className)'
+                          : childName;
                       return DropdownMenuItem<int>(
                         value: c['id'],
-                        child: Text(c['fullname'] ?? '-'),
+                        child: Text(label),
                       );
                     }).toList(),
                     onChanged: (v) => setState(() => _selectedChildId = v),

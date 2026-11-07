@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../config/api_config.dart';
 import '../models/user_model.dart';
+import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../theme/scp_theme.dart';
 import '../widgets/dashboard_kit.dart';
 import 'bk/pending_leaves_screen.dart';
 import 'dashboard/guru_home_tab.dart';
 import 'dashboard/siswa_home_tab.dart';
+import 'dashboard/attendance_history_screen.dart';
 import 'dashboard/verifikator_home_tab.dart';
 import 'attendance_report_screen.dart';
 import 'guru/create_journal_screen.dart';
@@ -15,6 +18,7 @@ import 'guru/my_journals_screen.dart';
 import 'guru/journal_monitor_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
+import 'edit_profile_screen.dart';
 import 'schedules/role_schedule_screen.dart';
 import 'siswa/my_leaves_screen.dart';
 import '../widgets/school_logo.dart';
@@ -33,6 +37,57 @@ class _HomeScreenState extends State<HomeScreen> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = 0;
   Map<String, dynamic>? _nextSchedule;
+  late UserModel _currentUser;
+  int? _selectedChildId;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = widget.user;
+    if (_currentUser.isOrangTua) {
+      if (_currentUser.children.isNotEmpty) {
+        _selectedChildId = int.tryParse('${_currentUser.children.first['id']}');
+      }
+      _fetchChildrenForParent();
+    }
+  }
+
+  Future<void> _fetchChildrenForParent() async {
+    try {
+      final res = await ApiService().get(ApiConfig.children);
+      if (res['success'] == true) {
+        final list = asList(res['data'])
+            .whereType<Map>()
+            .map((c) => Map<String, dynamic>.from(c))
+            .toList();
+        if (mounted && list.isNotEmpty) {
+          setState(() {
+            _currentUser = _currentUser.copyWith(children: list);
+            _selectedChildId ??= int.tryParse('${list.first['id']}');
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  Map<String, dynamic>? get _selectedChild {
+    if (!_currentUser.isOrangTua) return null;
+    if (_currentUser.children.isEmpty) return null;
+    if (_selectedChildId != null) {
+      for (final child in _currentUser.children) {
+        if (int.tryParse('${child['id']}') == _selectedChildId) {
+          return child;
+        }
+      }
+    }
+    return _currentUser.children.first;
+  }
+
+  void _onProfileUpdated(UserModel updated) {
+    setState(() {
+      _currentUser = updated;
+    });
+  }
 
   Future<void> _logout() async {
     final shouldLogout = await showDialog<bool>(
@@ -71,37 +126,70 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<Widget> _pages() {
-    final user = widget.user;
+    final user = _currentUser;
     if (user.isGuru) {
       return [
         GuruHomeTab(
           user: user,
           onNavigateTab: _navigateToTab,
+          onProfileUpdated: _onProfileUpdated,
           onNextSchedule: (schedule) {
             if (mounted && _nextSchedule?['id'] != schedule?['id']) {
               setState(() => _nextSchedule = schedule);
             }
           },
         ),
-        KbmRecapScreen(embedded: true, ownerId: user.id),
+        KbmRecapScreen(embedded: true, ownerId: user.id, user: user),
         const MyJournalsScreen(),
         RoleScheduleScreen(user: user, embedded: true),
-        ProfileScreen(user: user, embedded: true),
+        ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
       ];
     }
     if (user.isSiswa || user.isOrangTua) {
-      final child = user.isOrangTua && user.children.isNotEmpty
-          ? user.children.first
-          : null;
+      final child = _selectedChild;
       return [
         SiswaHomeTab(
           user: user,
           onNavigateTab: _navigateToTab,
           isParent: user.isOrangTua,
+          selectedStudentId: _selectedChildId,
+          onProfileUpdated: _onProfileUpdated,
+          onSelectStudent: (id) {
+            setState(() => _selectedChildId = id);
+          },
+          onChildrenUpdated: (children) {
+            setState(() {
+              _currentUser = _currentUser.copyWith(children: children);
+              if (_selectedChildId == null && children.isNotEmpty) {
+                _selectedChildId = int.tryParse('${children.first['id']}');
+              }
+            });
+          },
         ),
-        RoleScheduleScreen(user: user, child: child, embedded: true),
-        const MyLeavesScreen(),
-        ProfileScreen(user: user, embedded: true),
+        AttendanceHistoryScreen(
+          user: user,
+          isParent: user.isOrangTua,
+          student: child,
+          children: user.children,
+          onSelectStudent: (id) {
+            setState(() => _selectedChildId = id);
+          },
+          embedded: true,
+        ),
+        RoleScheduleScreen(
+          user: user,
+          child: child,
+          children: user.children,
+          onSelectStudent: (id) {
+            setState(() => _selectedChildId = id);
+          },
+          embedded: true,
+        ),
+        MyLeavesScreen(
+          user: user,
+          selectedChild: child,
+        ),
+        ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
       ];
     }
     if (user.isWaliKelas) {
@@ -110,6 +198,8 @@ class _HomeScreenState extends State<HomeScreen> {
           user: user,
           onNavigateTab: _navigateToTab,
           recapTabIndex: 4,
+          attendanceTabIndex: 3,
+          onProfileUpdated: _onProfileUpdated,
           onNextSchedule: (schedule) {
             if (mounted && _nextSchedule?['id'] != schedule?['id']) {
               setState(() => _nextSchedule = schedule);
@@ -123,9 +213,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const MyJournalsScreen(),
         AttendanceReportScreen(isBk: false, user: user, embedded: true),
-        KbmRecapScreen(embedded: true, ownerId: user.id),
+        KbmRecapScreen(embedded: true, ownerId: user.id, user: user),
         RoleScheduleScreen(user: user, embedded: true),
-        ProfileScreen(user: user, embedded: true),
+        ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
       ];
     }
     if (user.isGuruBK) {
@@ -134,6 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
           user: user,
           isBk: true,
           onNavigateTab: _navigateToTab,
+          onProfileUpdated: _onProfileUpdated,
         ),
         AttendanceReportScreen(isBk: true, user: user, embedded: true),
         const PendingLeavesScreen(isBk: true, embedded: true),
@@ -142,6 +233,8 @@ class _HomeScreenState extends State<HomeScreen> {
           onNavigateTab: _navigateToTab,
           showRecapAction: false,
           journalTabIndex: 5,
+          attendanceTabIndex: 1,
+          onProfileUpdated: _onProfileUpdated,
           onNextSchedule: (schedule) {
             if (mounted && _nextSchedule?['id'] != schedule?['id']) {
               setState(() => _nextSchedule = schedule);
@@ -150,20 +243,20 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         RoleScheduleScreen(user: user, embedded: true),
         const MyJournalsScreen(),
-        ProfileScreen(user: user, embedded: true),
+        ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
       ];
     }
     if (user.canMonitorJournals) {
       return [
         JournalMonitorScreen(user: user, embedded: true),
-        ProfileScreen(user: user, embedded: true),
+        ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
       ];
     }
     return [
       Center(
         child: ScpEmpty(message: 'Dashboard untuk role ini belum tersedia'),
       ),
-      ProfileScreen(user: user, embedded: true),
+      ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
     ];
   }
 
@@ -180,6 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (user.isSiswa || user.isOrangTua) {
       return const [
         ScpNavItem(Icons.home_rounded, 'Home'),
+        ScpNavItem(Icons.assessment_outlined, 'Presensi'),
         ScpNavItem(Icons.calendar_month_rounded, 'Jadwal'),
         ScpNavItem(Icons.description_outlined, 'Izin'),
       ];
@@ -227,7 +321,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final pages = _pages();
     final navItems = _navigation();
     final selectedIndex = _selectedIndex.clamp(0, pages.length - 1);
-    final user = widget.user;
+    final user = _currentUser;
     final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -290,9 +384,56 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    ScpRoleBadge(
-                      roleName: user.roleName ?? 'Pengguna',
-                      className: user.className,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ScpRoleBadge(
+                            roleName: user.roleName ?? 'Pengguna',
+                            className: user.className,
+                          ),
+                        ),
+                        InkWell(
+                          onTap: () async {
+                            Navigator.pop(context);
+                            final updated = await Navigator.push<UserModel>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => EditProfileScreen(
+                                  user: user,
+                                  onProfileUpdated: _onProfileUpdated,
+                                ),
+                              ),
+                            );
+                            if (updated != null) {
+                              _onProfileUpdated(updated);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: colors.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.edit_outlined, size: 14, color: colors.primary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Edit Profil',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: colors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -338,15 +479,81 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
+              Divider(height: 1, color: colors.outline),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text(
+                  'AKUN & PENGATURAN',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: colors.onSurface.withValues(alpha: 0.5),
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
               ListTile(
-                leading: Icon(
-                  Icons.person_outline_rounded,
-                  color: selectedIndex == pages.length - 1
-                      ? colors.primary
-                      : colors.onSurface.withValues(alpha: 0.65),
+                leading: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.manage_accounts_rounded,
+                    color: colors.primary,
+                    size: 20,
+                  ),
+                ),
+                title: const Text(
+                  'Edit Profil & Password',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Ubah username, email, dan password',
+                  style: TextStyle(fontSize: 11),
+                ),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  color: colors.onSurface.withValues(alpha: 0.4),
+                  size: 20,
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final updated = await Navigator.push<UserModel>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EditProfileScreen(
+                        user: user,
+                        onProfileUpdated: _onProfileUpdated,
+                      ),
+                    ),
+                  );
+                  if (updated != null) {
+                    _onProfileUpdated(updated);
+                  }
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.person_outline_rounded,
+                    color: selectedIndex == pages.length - 1
+                        ? colors.primary
+                        : colors.onSurface.withValues(alpha: 0.7),
+                    size: 20,
+                  ),
                 ),
                 title: Text(
-                  'Profil',
+                  'Detail Profil',
                   style: TextStyle(
                     color: selectedIndex == pages.length - 1
                         ? colors.primary
@@ -354,16 +561,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: selectedIndex == pages.length - 1
                         ? FontWeight.w700
                         : FontWeight.w500,
+                    fontSize: 14,
                   ),
                 ),
                 selected: selectedIndex == pages.length - 1,
                 selectedTileColor: colors.primary.withValues(alpha: 0.12),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  color: colors.onSurface.withValues(alpha: 0.4),
+                  size: 20,
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   setState(() => _selectedIndex = pages.length - 1);
                 },
               ),
-
               Divider(height: 1, color: colors.outline),
 
               // Logout Tile
@@ -452,31 +664,63 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: () => _scaffoldKey.currentState?.openDrawer(),
               ),
               actions: [
-                if (user.className != null && user.className!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: ScpColors.surfaceAlt,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: ScpColors.line),
-                        ),
-                        child: Text(
-                          user.className!,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: ScpColors.muted,
+                Builder(
+                  builder: (_) {
+                    final badgeText = user.isOrangTua
+                        ? (_selectedChild?['class_name']?.toString() ??
+                            asMap(_selectedChild?['class'])['class_name']?.toString() ??
+                            user.className ??
+                            '')
+                        : (user.className ?? '');
+                    if (badgeText.isEmpty) return const SizedBox();
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: ScpColors.surfaceAlt,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: ScpColors.line),
+                          ),
+                          child: Text(
+                            badgeText,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: ScpColors.muted,
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    );
+                  },
+                ),
+                IconButton(
+                  tooltip: 'Edit Profil & Password',
+                  icon: Icon(
+                    Icons.account_circle_outlined,
+                    color: colors.primary,
+                    size: 24,
                   ),
+                  onPressed: () async {
+                    final updated = await Navigator.push<UserModel>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EditProfileScreen(
+                          user: user,
+                          onProfileUpdated: _onProfileUpdated,
+                        ),
+                      ),
+                    );
+                    if (updated != null) {
+                      _onProfileUpdated(updated);
+                    }
+                  },
+                ),
                 IconButton(
                   tooltip: 'Keluar',
                   icon: Icon(

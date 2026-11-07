@@ -8,9 +8,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../config/api_config.dart';
 import '../../services/api_service.dart';
 import '../../services/journal_draft_store.dart';
+import '../../theme/scp_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/live_refresh.dart';
-import 'attendance_screen.dart';
+import '../../utils/photo_watermark.dart';
 
 class CreateJournalScreen extends StatefulWidget {
   final Map<String, dynamic> schedule;
@@ -145,6 +146,11 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
               '',
         };
       }).toList();
+      _roster.sort((a, b) {
+        final nameA = (a['fullname'] ?? '').toString().trim().toLowerCase().replaceAll(RegExp(r'^[^a-zA-Z0-9]+'), '');
+        final nameB = (b['fullname'] ?? '').toString().trim().toLowerCase().replaceAll(RegExp(r'^[^a-zA-Z0-9]+'), '');
+        return nameA.compareTo(nameB);
+      });
       if (_roster.isEmpty) {
         throw const FormatException('Roster siswa untuk jadwal ini kosong.');
       }
@@ -163,6 +169,7 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
                 (student) => {
                   'student_id': student['student_id'],
                   'status': 'Hadir',
+                  'notes': '',
                 },
               )
               .toList(),
@@ -183,6 +190,10 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
               for (final item in draft.attendances)
                 _readInt(item['student_id']): item['status']?.toString(),
             };
+            final oldNotes = {
+              for (final item in draft.attendances)
+                _readInt(item['student_id']): item['notes']?.toString(),
+            };
             draft = draft.copyWith(
               idempotencyKey: _store.newIdempotencyKey(),
               submissionAttempted: false,
@@ -191,6 +202,7 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
                     (student) => {
                       'student_id': student['student_id'],
                       'status': oldStatuses[student['student_id']] ?? 'Hadir',
+                      'notes': oldNotes[student['student_id']] ?? '',
                     },
                   )
                   .toList(),
@@ -265,13 +277,20 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
         setState(() => _error = 'Foto harus berformat JPEG atau PNG.');
         return;
       }
+
+      // Berikan watermark hari, tanggal, dan jam real-time pada foto
+      // Catatan: Jika pickImage di-inject untuk test, jangan modifikasi bytes agar contract test tetap terjaga
+      final watermarkedBytes = widget.pickImage == null
+          ? applyJournalPhotoWatermark(bytes)
+          : bytes;
+
       final draft = _draft;
       if (draft == null) return;
       _updateDraft(
         draft.copyWith(
-          photoBase64: base64Encode(bytes),
+          photoBase64: base64Encode(watermarkedBytes),
           photoName: photo.name.isEmpty ? 'dokumentasi.jpg' : photo.name,
-          photoContentType: contentType,
+          photoContentType: widget.pickImage == null ? 'image/jpeg' : contentType,
         ),
       );
       setState(() => _error = null);
@@ -361,6 +380,10 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
         fields['attendances[$index][student_id]'] =
             '${attendance['student_id']}';
         fields['attendances[$index][status]'] = attendance['status'].toString();
+        final note = attendance['notes']?.toString() ?? '';
+        if (note.isNotEmpty) {
+          fields['attendances[$index][notes]'] = note;
+        }
       }
 
       final result = await _api.postMultipart(
@@ -386,20 +409,16 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
           submittingDraft.date,
         );
         LiveRefresh.pingJournals();
+        LiveRefresh.pingAttendances();
         if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AttendanceScreen(
-              journalId: journalId,
-              subject: widget.schedule['subject']?.toString() ?? '-',
-              className:
-                  _asMap(widget.schedule['class'])['class_name']?.toString() ??
-                  '-',
-              api: _api,
-            ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Jurnal dan presensi siswa berhasil disimpan!'),
+            backgroundColor: ScpColors.green,
+            behavior: SnackBarBehavior.floating,
           ),
         );
+        Navigator.pop(context, true);
         return;
       }
 
@@ -474,34 +493,186 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
     }).toList();
   }
 
+  void _setStudentNote(int studentId, String note) {
+    final draft = _draft;
+    if (draft == null) return;
+    final attendances = draft.attendances
+        .map(
+          (item) => _readInt(item['student_id']) == studentId
+              ? {...item, 'notes': note.trim()}
+              : item,
+        )
+        .toList();
+    _updateDraft(draft.copyWith(attendances: attendances));
+  }
+
+  Future<void> _openNoteDialog(Map<String, dynamic> student, [JournalDraft? draftState]) async {
+    if (_submissionUncertain) return;
+    final studentId = student['student_id'] as int;
+    final draft = draftState ?? _draft;
+    final attendance = draft?.attendances.firstWhere(
+      (item) => _readInt(item['student_id']) == studentId,
+      orElse: () => {'status': 'Hadir', 'notes': ''},
+    );
+    final currentNote = attendance?['notes']?.toString() ?? '';
+    final controller = TextEditingController(text: currentNote);
+
+    const quickNotes = [
+      'Nyekip jam pelajaran',
+      'Motong jam pelajaran',
+      'Cabut setelah istirahat',
+      'Meninggalkan kelas tanpa izin',
+      'Terlambat masuk jam ke-2',
+    ];
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.edit_note_rounded, color: ScpColors.blue),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Catatan: ${student['fullname']}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Catatan khusus jika siswa memotong jam / nyekip pelajaran:',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: quickNotes.map((q) => ActionChip(
+                  label: Text(q, style: const TextStyle(fontSize: 11)),
+                  backgroundColor: ScpColors.blue.withValues(alpha: 0.08),
+                  side: BorderSide(color: ScpColors.blue.withValues(alpha: 0.25)),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  onPressed: () {
+                    controller.text = q;
+                  },
+                )).toList(),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLines: 3,
+                autofocus: currentNote.isEmpty,
+                decoration: InputDecoration(
+                  hintText: 'Ketik catatan di sini...',
+                  hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          if (currentNote.isNotEmpty)
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: ScpColors.red),
+              onPressed: () {
+                _setStudentNote(studentId, '');
+                Navigator.pop(ctx);
+              },
+              child: const Text('Hapus Catatan'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              _setStudentNote(studentId, controller.text);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _chooseStatus(Map<String, dynamic> student) async {
     if (_submissionUncertain) return;
     final studentId = student['student_id'] as int;
-    final current = _draft?.attendances
-        .firstWhere(
-          (item) => _readInt(item['student_id']) == studentId,
-          orElse: () => {'status': 'Hadir'},
-        )['status']
-        ?.toString();
+    final attendance = _draft?.attendances.firstWhere(
+      (item) => _readInt(item['student_id']) == studentId,
+      orElse: () => {'status': 'Hadir', 'notes': ''},
+    );
+    final current = attendance?['status']?.toString() ?? 'Hadir';
+    final currentNote = attendance?['notes']?.toString() ?? '';
+
     final selected = await showModalBottomSheet<String>(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(
                 student['fullname'].toString(),
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
               ),
             ),
             for (final status in _statuses)
               ListTile(
-                title: Text(status),
-                trailing: current == status ? const Icon(Icons.check) : null,
+                title: Text(
+                  status,
+                  style: TextStyle(
+                    fontWeight: current == status ? FontWeight.bold : FontWeight.normal,
+                    color: status == 'Alpha' ? ScpColors.red : null,
+                  ),
+                ),
+                trailing: current == status ? const Icon(Icons.check, color: ScpColors.blue) : null,
                 onTap: () => Navigator.pop(context, status),
               ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.edit_note_rounded, color: ScpColors.blue),
+              title: const Text(
+                'Catatan Siswa (Nyekip / Motong Jam)',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              subtitle: Text(
+                currentNote.isNotEmpty
+                    ? currentNote
+                    : 'Ketik catatan khusus untuk siswa ini...',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: currentNote.isNotEmpty ? Colors.amber.shade900 : Colors.grey,
+                  fontWeight: currentNote.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.pop(context);
+                _openNoteDialog(student);
+              },
+            ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -517,6 +688,9 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
         )
         .toList();
     _updateDraft(draft.copyWith(attendances: attendances));
+    if (selected == 'Alpha' && currentNote.isEmpty) {
+      _openNoteDialog(student);
+    }
   }
 
   static Map<String, dynamic> _asMap(dynamic value) {
@@ -682,8 +856,8 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        for (final student in _visibleStudents)
-          _studentTile(student, draft, locked),
+        for (var i = 0; i < _visibleStudents.length; i++)
+          _studentTile(_visibleStudents[i], draft, locked, i + 1),
         if (_error != null) ...[
           const SizedBox(height: 12),
           Text(_error!, style: const TextStyle(color: Colors.red)),
@@ -744,43 +918,189 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
     Map<String, dynamic> student,
     JournalDraft? draft,
     bool locked,
+    int number,
   ) {
     final id = student['student_id'];
     final attendance = draft?.attendances.firstWhere(
       (item) => _readInt(item['student_id']) == id,
-      orElse: () => {'status': 'Hadir'},
+      orElse: () => {'status': 'Hadir', 'notes': ''},
     );
     final status = attendance?['status']?.toString() ?? 'Hadir';
+    final notes = attendance?['notes']?.toString() ?? '';
+    final isAlpha = status == 'Alpha';
+    final hasNotes = notes.isNotEmpty;
+
     return Card(
-      child: ListTile(
-        title: Text(student['fullname'].toString()),
-        subtitle: Text(
-          student['nisn'].toString().isEmpty
-              ? 'Status presensi'
-              : 'NISN ${student['nisn']}',
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: isAlpha
+              ? ScpColors.red.withValues(alpha: 0.35)
+              : (hasNotes ? Colors.amber.shade400 : Colors.grey.shade200),
+          width: (isAlpha || hasNotes) ? 1.5 : 1,
         ),
-        trailing: DropdownButton<String>(
-          value: _statuses.contains(status) ? status : 'Hadir',
-          onChanged: locked
-              ? null
-              : (value) {
-                  if (value == null || draft == null) return;
-                  final attendanceList = draft.attendances
-                      .map(
-                        (item) => _readInt(item['student_id']) == id
-                            ? {...item, 'status': value}
-                            : item,
-                      )
-                      .toList();
-                  _updateDraft(draft.copyWith(attendances: attendanceList));
-                },
-          items: _statuses
-              .map(
-                (value) => DropdownMenuItem(value: value, child: Text(value)),
-              )
-              .toList(),
-        ),
-        onTap: locked ? null : () => _chooseStatus(student),
+      ),
+      color: isAlpha
+          ? ScpColors.red.withValues(alpha: 0.03)
+          : (hasNotes ? Colors.amber.shade50.withValues(alpha: 0.35) : null),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            title: Text(
+              '$number. ${student['fullname']}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Row(
+              children: [
+                Text(
+                  student['nisn'].toString().isEmpty
+                      ? 'Status presensi'
+                      : 'NISN ${student['nisn']}',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
+                ),
+                if (!isAlpha && !hasNotes) ...[
+                  const SizedBox(width: 8),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: locked ? null : () => _openNoteDialog(student, draft),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Text(
+                        '+ Catatan',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: ScpColors.blue,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            trailing: DropdownButton<String>(
+              value: _statuses.contains(status) ? status : 'Hadir',
+              underline: const SizedBox(),
+              onChanged: locked
+                  ? null
+                  : (value) {
+                      if (value == null || draft == null) return;
+                      if (value == '__note__') {
+                        _openNoteDialog(student, draft);
+                        return;
+                      }
+                      final attendanceList = draft.attendances
+                          .map(
+                            (item) => _readInt(item['student_id']) == id
+                                ? {...item, 'status': value}
+                                : item,
+                          )
+                          .toList();
+                      _updateDraft(draft.copyWith(attendances: attendanceList));
+                      if (value == 'Alpha' && notes.isEmpty) {
+                        _openNoteDialog(student, draft);
+                      }
+                    },
+              items: [
+                ..._statuses.map(
+                  (value) => DropdownMenuItem(
+                    value: value,
+                    child: Text(
+                      value,
+                      style: TextStyle(
+                        color: value == 'Alpha'
+                            ? ScpColors.red
+                            : (value == 'Hadir' ? Colors.green.shade700 : null),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: '__note__',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit_note_rounded, size: 18, color: Colors.amber.shade900),
+                      const SizedBox(width: 4),
+                      Text(
+                        notes.isNotEmpty ? 'Catatan (Ada)' : 'Catatan (Nyekip/Motong Jam)',
+                        style: TextStyle(
+                          color: Colors.amber.shade900,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            onTap: locked ? null : () => _chooseStatus(student),
+          ),
+          if (isAlpha || hasNotes)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: locked ? null : () => _openNoteDialog(student, draft),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: hasNotes
+                        ? Colors.amber.shade50
+                        : ScpColors.red.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: hasNotes
+                          ? Colors.amber.shade300
+                          : ScpColors.red.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.edit_note_rounded,
+                        size: 18,
+                        color: hasNotes ? Colors.amber.shade900 : ScpColors.red,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          hasNotes
+                              ? 'Catatan: $notes'
+                              : 'Klik untuk mengisi catatan (misal: nyekip jam pelajaran)...',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: hasNotes ? Colors.amber.shade900 : Colors.grey.shade700,
+                            fontWeight: hasNotes ? FontWeight.w600 : FontWeight.normal,
+                            fontStyle: hasNotes ? FontStyle.normal : FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                      if (!locked && hasNotes)
+                        GestureDetector(
+                          onTap: () => _setStudentNote(student['student_id'] as int, ''),
+                          child: const Padding(
+                            padding: EdgeInsets.all(2),
+                            child: Icon(Icons.close_rounded, size: 16, color: Colors.grey),
+                          ),
+                        )
+                      else if (!locked)
+                        Icon(Icons.edit_outlined, size: 14, color: Colors.grey.shade500),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

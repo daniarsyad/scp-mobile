@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../../config/api_config.dart';
+import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import '../../utils/live_refresh.dart';
+import '../ortu/create_leave_ortu_screen.dart';
+import 'create_leave_screen.dart';
 
 class MyLeavesScreen extends StatefulWidget {
-  const MyLeavesScreen({super.key});
+  final UserModel? user;
+  final Map<String, dynamic>? selectedChild;
+
+  const MyLeavesScreen({
+    super.key,
+    this.user,
+    this.selectedChild,
+  });
 
   @override
   State<MyLeavesScreen> createState() => _MyLeavesScreenState();
@@ -44,6 +54,21 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
         _error = result['message'] ?? 'Gagal memuat data izin';
       }
     });
+  }
+
+  Future<void> _createLeave() async {
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => (widget.user?.isOrangTua == true)
+            ? const CreateLeaveOrtuScreen()
+            : const CreateLeaveScreen(),
+      ),
+    );
+    if (ok == true) {
+      LiveRefresh.pingLeaves();
+      await _load();
+    }
   }
 
   Future<void> _cancel(Map item) async {
@@ -126,6 +151,13 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgColor,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _createLeave,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Ajukan Izin'),
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+      ),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,9 +175,13 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
                       color: Color(0xFF1E1E1E),
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.refresh, color: primaryColor),
-                    onPressed: _load,
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.refresh, color: primaryColor),
+                        onPressed: _load,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -163,10 +199,48 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
                       ),
                     )
                   : _leaves.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'Belum ada pengajuan izin',
-                        style: TextStyle(color: Colors.grey),
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.post_add_rounded,
+                              size: 64,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Belum ada pengajuan izin',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E1E1E),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              widget.user?.isOrangTua == true
+                                  ? 'Klik tombol di bawah untuk membuat pengajuan izin untuk anak Anda.'
+                                  : 'Klik tombol di bawah untuk membuat pengajuan izin baru.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            FilledButton.icon(
+                              onPressed: _createLeave,
+                              icon: const Icon(Icons.add_rounded),
+                              label: const Text('Ajukan Izin Sekarang'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     )
                   : RefreshIndicator(
@@ -195,6 +269,14 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
                           final rejectionReason = item['rejection_reason']
                               ?.toString();
 
+                          final student = item['student'] is Map
+                              ? item['student'] as Map
+                              : null;
+                          final studentName = student?['fullname']?.toString();
+                          final studentClass = student?['class'] is Map
+                              ? student!['class']['class_name']?.toString()
+                              : student?['class_name']?.toString();
+
                           return Card(
                             margin: const EdgeInsets.only(bottom: 16),
                             child: Padding(
@@ -222,6 +304,41 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
                                       ),
                                     ],
                                   ),
+                                  if (studentName != null &&
+                                      studentName.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: primaryColor.withValues(
+                                          alpha: 0.08,
+                                        ),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.person_outline_rounded,
+                                            size: 14,
+                                            color: primaryColor,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Siswa: $studentName${studentClass != null && studentClass.isNotEmpty ? ' ($studentClass)' : ''}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: primaryColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                   const SizedBox(height: 6),
                                   Text('Jenis: $leaveType'),
                                   Text(reason),
@@ -236,6 +353,41 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
                                         ),
                                       ),
                                     ),
+                                  if (item['verified_by'] != null &&
+                                      (item['verified_by'] is Map ||
+                                          item['verified_by_user'] is Map)) ...[
+                                    Builder(
+                                      builder: (_) {
+                                        final v = item['verified_by'] is Map
+                                            ? item['verified_by'] as Map
+                                            : (item['verified_by_user'] as Map? ?? {});
+                                        final vName = v['fullname']?.toString() ?? '';
+                                        final vRole = (v['role'] is Map ? v['role']['role_name'] : null)?.toString() ?? 'Guru';
+                                        if (vName.isEmpty) return const SizedBox();
+                                        return Padding(
+                                          padding: const EdgeInsets.only(top: 6),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.verified_user_rounded,
+                                                size: 14,
+                                                color: _statusColor(status),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Diverifikasi: $vName ($vRole)',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.grey.shade700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
                                   if (_canCancel(item))
                                     Align(
                                       alignment: Alignment.centerRight,

@@ -3,12 +3,40 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/app_theme_controller.dart';
 import '../theme/scp_theme.dart';
+import 'edit_profile_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final UserModel user;
   final bool embedded;
+  final ValueChanged<UserModel>? onProfileUpdated;
 
-  const ProfileScreen({super.key, required this.user, this.embedded = false});
+  const ProfileScreen({
+    super.key,
+    required this.user,
+    this.embedded = false,
+    this.onProfileUpdated,
+  });
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  late UserModel _user;
+
+  @override
+  void initState() {
+    super.initState();
+    _user = widget.user;
+  }
+
+  @override
+  void didUpdateWidget(ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user != widget.user) {
+      _user = widget.user;
+    }
+  }
 
   Future<void> _setTheme(BuildContext context, ThemeMode mode) async {
     try {
@@ -21,10 +49,30 @@ class ProfileScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _openEditProfile(BuildContext context) async {
+    final updated = await Navigator.push<UserModel>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditProfileScreen(
+          user: _user,
+          onProfileUpdated: (u) {
+            setState(() => _user = u);
+            widget.onProfileUpdated?.call(u);
+          },
+        ),
+      ),
+    );
+
+    if (updated != null && mounted) {
+      setState(() => _user = updated);
+      widget.onProfileUpdated?.call(updated);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final body = _body(context);
-    if (embedded) {
+    if (widget.embedded) {
       return ColoredBox(
         color: Theme.of(context).scaffoldBackgroundColor,
         child: body,
@@ -48,44 +96,68 @@ class ProfileScreen extends StatelessWidget {
             gradient: ScpColors.primaryGradient,
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Row(
+          child: Column(
             children: [
-              CircleAvatar(
-                radius: 30,
-                backgroundColor: Colors.white.withValues(alpha: 0.18),
-                child: Text(
-                  user.fullname.isEmpty ? '?' : user.fullname[0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user.fullname.isEmpty ? 'Pengguna SCP' : user.fullname,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white.withValues(alpha: 0.18),
+                    child: Text(
+                      _user.fullname.isEmpty ? '?' : _user.fullname[0].toUpperCase(),
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: 24,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '@${user.username}',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 13,
-                      ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _user.fullname.isEmpty ? 'Pengguna SCP' : _user.fullname,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '@${_user.username}',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _openEditProfile(context),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text(
+                    'Edit Profil & Password',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
                 ),
               ),
             ],
@@ -105,9 +177,21 @@ class ProfileScreen extends StatelessWidget {
                 context,
                 icon: Icons.badge_outlined,
                 label: 'Peran',
-                value: user.roleName ?? 'Pengguna',
+                value: _user.roleName ?? 'Pengguna',
               ),
-              if (user.className != null && user.className!.isNotEmpty) ...[
+              if (_user.email != null && _user.email!.isNotEmpty) ...[
+                Divider(
+                  height: 1,
+                  color: colors.outline.withValues(alpha: 0.35),
+                ),
+                _infoTile(
+                  context,
+                  icon: Icons.email_outlined,
+                  label: 'Email',
+                  value: _user.email!,
+                ),
+              ],
+              if (_user.className != null && _user.className!.isNotEmpty) ...[
                 Divider(
                   height: 1,
                   color: colors.outline.withValues(alpha: 0.35),
@@ -116,7 +200,7 @@ class ProfileScreen extends StatelessWidget {
                   context,
                   icon: Icons.groups_outlined,
                   label: 'Kelas',
-                  value: user.className!,
+                  value: _user.className!,
                 ),
               ],
             ],

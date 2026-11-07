@@ -2,6 +2,7 @@ class UserModel {
   final int id;
   final String username;
   final String fullname;
+  final String? email;
   final int roleId;
   final String? roleName;
   final List<String> additionalRoles;
@@ -14,6 +15,7 @@ class UserModel {
     required this.id,
     required this.username,
     required this.fullname,
+    this.email,
     required this.roleId,
     this.roleName,
     this.additionalRoles = const [],
@@ -42,6 +44,7 @@ class UserModel {
           json['nip']?.toString() ??
           '',
       fullname: json['fullname']?.toString() ?? '',
+      email: json['email']?.toString(),
       roleId: json['role_id'] is int
           ? json['role_id']
           : int.tryParse('${json['role_id'] ?? 0}') ?? 0,
@@ -96,4 +99,32 @@ class UserModel {
   bool get isWaka => _roleKey == 'wakakurikulum';
   bool get isKepalaSekolah => _roleKey == 'kepalasekolah';
   bool get canMonitorJournals => isKepalaSekolah;
+
+  UserModel copyWith({
+    int? id,
+    String? username,
+    String? fullname,
+    String? email,
+    int? roleId,
+    String? roleName,
+    List<String>? additionalRoles,
+    int? classId,
+    String? className,
+    List<Map<String, dynamic>>? children,
+    List<Map<String, dynamic>>? bkClasses,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      username: username ?? this.username,
+      fullname: fullname ?? this.fullname,
+      email: email ?? this.email,
+      roleId: roleId ?? this.roleId,
+      roleName: roleName ?? this.roleName,
+      additionalRoles: additionalRoles ?? this.additionalRoles,
+      classId: classId ?? this.classId,
+      className: className ?? this.className,
+      children: children ?? this.children,
+      bkClasses: bkClasses ?? this.bkClasses,
+    );
+  }
 }

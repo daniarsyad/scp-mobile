@@ -21,7 +21,7 @@ void main() {
     },
   };
 
-  testWidgets('Guru BK can monitor pending leave but cannot verify it', (
+  testWidgets('Guru BK can approve or reject pending leave for assigned classes', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -46,8 +46,8 @@ void main() {
 
     expect(find.text('Siswa Contoh'), findsOneWidget);
     expect(find.textContaining('XII RPL 2 • Sakit'), findsOneWidget);
-    expect(find.text('Tolak'), findsNothing);
-    expect(find.text('Setujui'), findsNothing);
+    expect(find.text('Tolak'), findsOneWidget);
+    expect(find.text('Setujui'), findsOneWidget);
     expect(requests, hasLength(1));
     expect(requests.single.method, 'GET');
   });

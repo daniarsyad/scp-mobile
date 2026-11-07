@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
 
 import '../../config/api_config.dart';
+import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import '../../theme/scp_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/live_refresh.dart';
 import '../../widgets/dashboard_kit.dart';
-import 'attendance_screen.dart';
+import '../attendance_report_screen.dart';
 import 'create_journal_screen.dart';
 
 class KbmRecapScreen extends StatefulWidget {
   final bool embedded;
   final int ownerId;
+  final UserModel? user;
 
-  const KbmRecapScreen({super.key, this.embedded = false, this.ownerId = 0});
+  const KbmRecapScreen({
+    super.key,
+    this.embedded = false,
+    this.ownerId = 0,
+    this.user,
+  });
 
   @override
   State<KbmRecapScreen> createState() => _KbmRecapScreenState();
@@ -22,6 +29,8 @@ class KbmRecapScreen extends StatefulWidget {
 class _KbmRecapScreenState extends State<KbmRecapScreen> {
   final _api = ApiService();
   bool _loading = true;
+  int _kbmScope = 0; // 0: KBM Kelas Binaan (Wali Kelas), 1: KBM Mengajar Saya
+  String? _activeCycle = '2';
   String? _error;
   List<Map<String, dynamic>> _schedules = [];
 
@@ -49,8 +58,24 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
         _error = null;
       });
     }
-    final result = await _api.get(ApiConfig.mySchedules);
+    final isWaliKelas = widget.user?.isWaliKelas == true;
+    final String path;
+    if (isWaliKelas && _kbmScope == 0) {
+      final classId = widget.user?.classId;
+      path = classId != null && classId > 0
+          ? '${ApiConfig.schedules}?class_id=$classId'
+          : ApiConfig.mySchedules;
+    } else {
+      path = ApiConfig.mySchedules;
+    }
+    final configFuture = _api.get(ApiConfig.systemConfig);
+    final result = await _api.get(path);
+    final configResult = await configFuture;
     if (!mounted) return;
+
+    if (configResult['success'] == true && configResult['data'] is Map) {
+      _activeCycle = configResult['data']['active_cycle']?.toString() ?? _activeCycle;
+    }
 
     if (result['success'] == true) {
       final rows = <Map<String, dynamic>>[];
@@ -80,13 +105,10 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => AttendanceScreen(
-            journalId: asInt(filled['id']),
-            subject: schedule['subject']?.toString() ?? '-',
-            className: schedule['class']?['class_name']?.toString() ?? '-',
-          ),
+          builder: (_) => AttendanceReportScreen(isBk: false, user: widget.user),
         ),
       );
+      return;
     } else {
       if (scheduleNotStarted(schedule)) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -105,6 +127,77 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
       );
     }
     if (mounted) _load(silent: true);
+  }
+
+  Widget _scopeSelector() {
+    final className = widget.user?.className ?? 'Kelas Binaan';
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ScpColors.line),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ChoiceChip(
+              label: SizedBox(
+                width: double.infinity,
+                child: Text('🏫 Kelas $className', textAlign: TextAlign.center),
+              ),
+              selected: _kbmScope == 0,
+              onSelected: (_) {
+                if (_kbmScope != 0) {
+                  setState(() => _kbmScope = 0);
+                  _load();
+                }
+              },
+              showCheckmark: false,
+              selectedColor: ScpColors.blue,
+              backgroundColor: Colors.transparent,
+              labelStyle: TextStyle(
+                color: _kbmScope == 0 ? Colors.white : ScpColors.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              side: BorderSide.none,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: ChoiceChip(
+              label: const SizedBox(
+                width: double.infinity,
+                child: Text('👨‍🏫 Mengajar Saya', textAlign: TextAlign.center),
+              ),
+              selected: _kbmScope == 1,
+              onSelected: (_) {
+                if (_kbmScope != 1) {
+                  setState(() => _kbmScope = 1);
+                  _load();
+                }
+              },
+              showCheckmark: false,
+              selectedColor: ScpColors.blue,
+              backgroundColor: Colors.transparent,
+              labelStyle: TextStyle(
+                color: _kbmScope == 1 ? Colors.white : ScpColors.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              side: BorderSide.none,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -162,11 +255,50 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 96),
         children: [
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: ScpColors.blueLight,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ScpColors.blue.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, size: 18, color: ScpColors.blue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Putaran Aktif: Putaran ${_activeCycle ?? "2"}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: ScpColors.blue,
+                    ),
+                  ),
+                ),
+                Text(
+                  todayDayName(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: ScpColors.blueDark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (widget.user?.isWaliKelas == true) ...[
+            _scopeSelector(),
+            const SizedBox(height: 12),
+          ],
           Row(
             children: [
               Expanded(
                 child: ScpStatCard(
-                  label: 'Jam KBM',
+                  label: widget.user?.isWaliKelas == true && _kbmScope == 0
+                      ? 'Total Jam Kelas'
+                      : 'Jam Mengajar',
                   value: '${_schedules.length}',
                   background: ScpColors.greenCard,
                   valueColor: ScpColors.green,
@@ -210,6 +342,7 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
     final subject = schedule['subject']?.toString() ?? '-';
     final className = schedule['class']?['class_name']?.toString() ?? '-';
     final room = schedule['room']?['room_name']?.toString() ?? '-';
+    final teacher = schedule['teacher']?['fullname']?.toString();
     final start = formatTime(schedule['start_time']);
     final end = formatTime(schedule['end_time']);
     final isToday = day.toLowerCase() == todayDayName().toLowerCase();
@@ -217,9 +350,15 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
         ? journalFilledToday(schedule)
         : journalTotal(schedule) > 0;
     final total = journalTotal(schedule);
+
+    final isHomeroomClassMode = widget.user?.isWaliKelas == true && _kbmScope == 0;
+    final teacherOrClass = isHomeroomClassMode
+        ? (teacher != null && teacher.isNotEmpty ? 'Guru: $teacher' : 'Kelas $className')
+        : 'Kelas $className';
+
     final subtitle = isToday
-        ? '$start-$end  •  $className  •  ${done ? 'Jurnal hari ini terisi' : 'Jurnal belum diisi'}'
-        : '$start-$end  •  $className  •  $room  •  $total jurnal';
+        ? '$start-$end  •  $teacherOrClass  •  Ruang $room  •  ${done ? 'Jurnal hari ini terisi' : 'Jurnal belum diisi'}'
+        : '$start-$end  •  $teacherOrClass  •  Ruang $room  •  $total jurnal';
 
     return ScpCategoryTile(
       icon: palette.icon,

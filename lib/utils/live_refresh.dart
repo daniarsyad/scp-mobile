@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 class LiveRefresh {
   static final journals = ValueNotifier<int>(0);
   static final leaves = ValueNotifier<int>(0);
+  static final attendances = ValueNotifier<int>(0);
 
   static void pingJournals() => journals.value++;
   static void pingLeaves() => leaves.value++;
+  static void pingAttendances() => attendances.value++;
 }
