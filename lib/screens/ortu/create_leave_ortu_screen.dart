@@ -66,13 +66,12 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
   }
 
   Future<void> _pickDocument({
-    required ImageSource source,
     CameraDevice cameraDevice = CameraDevice.rear,
     bool isSelfie = false,
   }) async {
     try {
       final x = await _picker.pickImage(
-        source: source,
+        source: ImageSource.camera,
         imageQuality: 75,
         maxWidth: 1280,
         maxHeight: 1280,
@@ -84,6 +83,9 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
       if (isSelfie || cameraDevice == CameraDevice.front) {
         bytes = flipImageHorizontal(bytes);
       }
+
+      // Berikan watermark hari, tanggal, dan jam secara real-time
+      bytes = applyJournalPhotoWatermark(bytes);
 
       if (!mounted) return;
       setState(() {
@@ -110,7 +112,7 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
               const Padding(
                 padding: EdgeInsets.only(bottom: 12),
                 child: Text(
-                  'Pilih Sumber Foto Lampiran',
+                  'Ambil Foto Real-Time (Kamera)',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
@@ -120,7 +122,6 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickDocument(
-                    source: ImageSource.camera,
                     cameraDevice: CameraDevice.rear,
                     isSelfie: false,
                   );
@@ -133,20 +134,8 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickDocument(
-                    source: ImageSource.camera,
                     cameraDevice: CameraDevice.front,
                     isSelfie: true,
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined, color: Colors.deepPurple),
-                title: const Text('Pilih dari Galeri'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickDocument(
-                    source: ImageSource.gallery,
-                    isSelfie: false,
                   );
                 },
               ),
@@ -489,7 +478,7 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
                       onPressed: _showImagePickerSheet,
                       icon: const Icon(Icons.camera_alt_outlined),
                       label: Text(
-                        _docBytes == null ? 'Ambil Foto / Pilih Berkas' : 'Ganti Foto',
+                        _docBytes == null ? 'Ambil Foto Kamera' : 'Ambil Ulang Foto',
                       ),
                     ),
                   ),

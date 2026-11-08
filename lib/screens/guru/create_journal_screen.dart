@@ -278,7 +278,7 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
               const Padding(
                 padding: EdgeInsets.only(bottom: 12),
                 child: Text(
-                  'Pilih Sumber Foto Dokumentasi',
+                  'Ambil Foto Dokumentasi Real-Time',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
@@ -311,20 +311,6 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
                     preferredCameraDevice: CameraDevice.front,
                   );
                   if (photo != null) await _processPhoto(photo, isFrontCamera: true);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined, color: Colors.deepPurple),
-                title: const Text('Pilih dari Galeri'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  final photo = await _picker.pickImage(
-                    source: ImageSource.gallery,
-                    imageQuality: 75,
-                    maxWidth: 1280,
-                    maxHeight: 1280,
-                  );
-                  if (photo != null) await _processPhoto(photo, isFrontCamera: false);
                 },
               ),
             ],
