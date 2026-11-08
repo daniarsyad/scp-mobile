@@ -178,7 +178,7 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
 
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.leaveRequests}'),
+        ApiConfig.buildUri(ApiConfig.leaveRequests),
       );
 
       if (token != null && token.isNotEmpty) {

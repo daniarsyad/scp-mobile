@@ -117,6 +117,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 runSpacing: 6,
                 children: [
                   ActionChip(
+                    label: const Text('Hosting (escepegaul.web.id)', style: TextStyle(fontSize: 11)),
+                    onPressed: () => urlCtrl.text = 'https://escepegaul.web.id/api',
+                  ),
+                  ActionChip(
                     label: const Text('Localhost (127.0.0.1)', style: TextStyle(fontSize: 11)),
                     onPressed: () => urlCtrl.text = 'http://127.0.0.1:8000/api',
                   ),

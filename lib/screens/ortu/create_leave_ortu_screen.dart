@@ -221,7 +221,7 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
 
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.leaveRequests}'),
+        ApiConfig.buildUri(ApiConfig.leaveRequests),
       );
 
       request.headers['Accept'] = 'application/json';

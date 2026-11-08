@@ -4,6 +4,7 @@ import '../../config/api_config.dart';
 import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import '../../utils/live_refresh.dart';
+import '../../utils/media_url.dart';
 import '../ortu/create_leave_ortu_screen.dart';
 import 'create_leave_screen.dart';
 
@@ -397,6 +398,28 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
                                   const SizedBox(height: 6),
                                   Text('Jenis: $leaveType'),
                                   Text(reason),
+                                  Builder(
+                                    builder: (ctx) {
+                                      final docUrl = firstMedia(item, suratKeys);
+                                      if (docUrl == null) return const SizedBox.shrink();
+                                      return Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: OutlinedButton.icon(
+                                          onPressed: () => showMediaPreview(
+                                            ctx,
+                                            docUrl,
+                                            title: 'Lampiran Surat ($leaveType)',
+                                          ),
+                                          icon: const Icon(Icons.attachment_rounded, size: 16),
+                                          label: const Text('Lihat Lampiran Surat'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: primaryColor,
+                                            visualDensity: VisualDensity.compact,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
                                   if (rejectionReason != null &&
                                       rejectionReason.isNotEmpty)
                                     Padding(

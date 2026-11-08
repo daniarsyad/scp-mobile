@@ -127,6 +127,60 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Widget> _pages() {
     final user = _currentUser;
+    if (user.isGuruBK) {
+      return [
+        VerifikatorHomeTab(
+          user: user,
+          isBk: true,
+          onNavigateTab: _navigateToTab,
+          onProfileUpdated: _onProfileUpdated,
+        ),
+        AttendanceReportScreen(isBk: true, user: user, embedded: true),
+        PendingLeavesScreen(isBk: true, embedded: true, user: user),
+        GuruHomeTab(
+          user: user,
+          onNavigateTab: _navigateToTab,
+          showRecapAction: false,
+          journalTabIndex: 5,
+          attendanceTabIndex: 1,
+          onProfileUpdated: _onProfileUpdated,
+          onNextSchedule: (schedule) {
+            if (mounted && _nextSchedule?['id'] != schedule?['id']) {
+              setState(() => _nextSchedule = schedule);
+            }
+          },
+        ),
+        RoleScheduleScreen(user: user, embedded: true),
+        const MyJournalsScreen(),
+        ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
+      ];
+    }
+    if (user.isWaliKelas) {
+      return [
+        GuruHomeTab(
+          user: user,
+          onNavigateTab: _navigateToTab,
+          recapTabIndex: 4,
+          attendanceTabIndex: 3,
+          onProfileUpdated: _onProfileUpdated,
+          onNextSchedule: (schedule) {
+            if (mounted && _nextSchedule?['id'] != schedule?['id']) {
+              setState(() => _nextSchedule = schedule);
+            }
+          },
+        ),
+        PendingLeavesScreen(
+          targetClass: user.className,
+          isBk: false,
+          embedded: true,
+        ),
+        const MyJournalsScreen(),
+        AttendanceReportScreen(isBk: false, user: user, embedded: true),
+        KbmRecapScreen(embedded: true, ownerId: user.id, user: user),
+        RoleScheduleScreen(user: user, embedded: true),
+        ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
+      ];
+    }
     if (user.isGuru) {
       return [
         GuruHomeTab(
@@ -192,60 +246,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
       ];
     }
-    if (user.isWaliKelas) {
-      return [
-        GuruHomeTab(
-          user: user,
-          onNavigateTab: _navigateToTab,
-          recapTabIndex: 4,
-          attendanceTabIndex: 3,
-          onProfileUpdated: _onProfileUpdated,
-          onNextSchedule: (schedule) {
-            if (mounted && _nextSchedule?['id'] != schedule?['id']) {
-              setState(() => _nextSchedule = schedule);
-            }
-          },
-        ),
-        PendingLeavesScreen(
-          targetClass: user.className,
-          isBk: false,
-          embedded: true,
-        ),
-        const MyJournalsScreen(),
-        AttendanceReportScreen(isBk: false, user: user, embedded: true),
-        KbmRecapScreen(embedded: true, ownerId: user.id, user: user),
-        RoleScheduleScreen(user: user, embedded: true),
-        ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
-      ];
-    }
-    if (user.isGuruBK) {
-      return [
-        VerifikatorHomeTab(
-          user: user,
-          isBk: true,
-          onNavigateTab: _navigateToTab,
-          onProfileUpdated: _onProfileUpdated,
-        ),
-        AttendanceReportScreen(isBk: true, user: user, embedded: true),
-        PendingLeavesScreen(isBk: true, embedded: true, user: user),
-        GuruHomeTab(
-          user: user,
-          onNavigateTab: _navigateToTab,
-          showRecapAction: false,
-          journalTabIndex: 5,
-          attendanceTabIndex: 1,
-          onProfileUpdated: _onProfileUpdated,
-          onNextSchedule: (schedule) {
-            if (mounted && _nextSchedule?['id'] != schedule?['id']) {
-              setState(() => _nextSchedule = schedule);
-            }
-          },
-        ),
-        RoleScheduleScreen(user: user, embedded: true),
-        const MyJournalsScreen(),
-        ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
-      ];
-    }
     if (user.canMonitorJournals) {
       return [
         JournalMonitorScreen(user: user, embedded: true),
@@ -262,6 +262,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<ScpNavItem> _navigation() {
     final user = _currentUser;
+    if (user.isGuruBK) {
+      return const [
+        ScpNavItem(Icons.home_rounded, 'Home'),
+        ScpNavItem(Icons.assessment_outlined, 'Laporan'),
+        ScpNavItem(Icons.fact_check_outlined, 'Monitoring Izin'),
+        ScpNavItem(Icons.edit_note_rounded, 'Jurnal (Opsional)'),
+        ScpNavItem(Icons.event_note_rounded, 'Jadwal Mengajar'),
+        ScpNavItem(Icons.menu_book_rounded, 'Riwayat Jurnal'),
+      ];
+    }
+    if (user.isWaliKelas) {
+      return const [
+        ScpNavItem(Icons.home_rounded, 'Home'),
+        ScpNavItem(Icons.fact_check_outlined, 'Verifikasi'),
+        ScpNavItem(Icons.menu_book_rounded, 'Jurnal'),
+        ScpNavItem(Icons.assessment_outlined, 'Presensi'),
+        ScpNavItem(Icons.calendar_month_rounded, 'KBM'),
+        ScpNavItem(Icons.event_note_rounded, 'Jadwal'),
+      ];
+    }
     if (user.isGuru) {
       return const [
         ScpNavItem(Icons.home_rounded, 'Home'),
@@ -276,26 +296,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ScpNavItem(Icons.assessment_outlined, 'Presensi'),
         ScpNavItem(Icons.calendar_month_rounded, 'Jadwal'),
         ScpNavItem(Icons.description_outlined, 'Izin'),
-      ];
-    }
-    if (user.isWaliKelas) {
-      return const [
-        ScpNavItem(Icons.home_rounded, 'Home'),
-        ScpNavItem(Icons.fact_check_outlined, 'Verifikasi'),
-        ScpNavItem(Icons.menu_book_rounded, 'Jurnal'),
-        ScpNavItem(Icons.assessment_outlined, 'Presensi'),
-        ScpNavItem(Icons.calendar_month_rounded, 'KBM'),
-        ScpNavItem(Icons.event_note_rounded, 'Jadwal'),
-      ];
-    }
-    if (user.isGuruBK) {
-      return const [
-        ScpNavItem(Icons.home_rounded, 'Home'),
-        ScpNavItem(Icons.assessment_outlined, 'Laporan'),
-        ScpNavItem(Icons.fact_check_outlined, 'Monitoring Izin'),
-        ScpNavItem(Icons.edit_note_rounded, 'Jurnal (Opsional)'),
-        ScpNavItem(Icons.event_note_rounded, 'Jadwal Mengajar'),
-        ScpNavItem(Icons.menu_book_rounded, 'Riwayat Jurnal'),
       ];
     }
     if (user.canMonitorJournals) {

@@ -24,8 +24,10 @@ String? firstMedia(Map item, List<String> keys) {
 }
 
 const suratKeys = [
+  'document_path',
   'document_url',
   'document',
+  'file_path',
   'file_url',
   'file',
   'surat',
@@ -34,8 +36,10 @@ const suratKeys = [
 ];
 
 const photoKeys = [
+  'photo_path',
   'photo_url',
   'photo',
+  'image_path',
   'image_url',
   'image',
   'foto',
