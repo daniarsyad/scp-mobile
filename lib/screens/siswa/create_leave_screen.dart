@@ -23,6 +23,7 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
   DateTime? _startDate;
   DateTime? _endDate;
   String _leaveType = 'Izin';
+  Uint8List? _rawDocBytes;
   Uint8List? _docBytes;
   bool _loading = false;
   String? _error;
@@ -51,32 +52,24 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
     }
   }
 
-  Future<void> _pickDocument({
-    CameraDevice cameraDevice = CameraDevice.rear,
-    bool isSelfie = false,
-  }) async {
+  Future<void> _pickDocument() async {
     try {
       final x = await _picker.pickImage(
         source: ImageSource.camera,
         imageQuality: 75,
         maxWidth: 1280,
         maxHeight: 1280,
-        preferredCameraDevice: cameraDevice,
       );
       if (x == null) return;
-      var bytes = await x.readAsBytes();
+      final rawBytes = await x.readAsBytes();
 
-      // Jika selfie dari kamera depan, un-mirror otomatis agar hasil foto tidak terbalik
-      if (isSelfie || cameraDevice == CameraDevice.front) {
-        bytes = flipImageHorizontal(bytes);
-      }
-
-      // Berikan watermark hari, tanggal, dan jam secara real-time
-      bytes = applyJournalPhotoWatermark(bytes);
+      // Normalkan orientasi EXIF & berikan watermark hari, tanggal, dan jam secara real-time
+      final watermarked = applyJournalPhotoWatermark(rawBytes);
 
       if (!mounted) return;
       setState(() {
-        _docBytes = bytes;
+        _rawDocBytes = rawBytes;
+        _docBytes = watermarked;
         _error = null;
       });
     } catch (e) {
@@ -84,59 +77,15 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
     }
   }
 
-  void _showImagePickerSheet() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(bottom: 12),
-                child: Text(
-                  'Ambil Foto Real-Time (Kamera)',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt_outlined, color: Color(0xFF1D4ED8)),
-                title: const Text('Kamera Belakang (Foto Surat / Bukti)'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickDocument(
-                    cameraDevice: CameraDevice.rear,
-                    isSelfie: false,
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_front_outlined, color: Colors.teal),
-                title: const Text('Kamera Depan (Selfie Tidak Terbalik)'),
-                subtitle: const Text('Otomatis di-unmirror agar foto selfie tetap normal'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickDocument(
-                    cameraDevice: CameraDevice.front,
-                    isSelfie: true,
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _flipPhoto() {
     if (_docBytes == null) return;
     setState(() {
-      _docBytes = flipImageHorizontal(_docBytes!);
+      if (_rawDocBytes != null) {
+        _rawDocBytes = flipImageHorizontal(_rawDocBytes!);
+        _docBytes = applyJournalPhotoWatermark(_rawDocBytes!);
+      } else {
+        _docBytes = flipImageHorizontal(_docBytes!);
+      }
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -365,7 +314,7 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: _showImagePickerSheet,
+                onPressed: _pickDocument,
                 icon: const Icon(Icons.camera_alt),
                 label: Text(
                   _docBytes == null ? 'Ambil Foto Kamera' : 'Ambil Ulang Foto',

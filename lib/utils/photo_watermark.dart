@@ -2,13 +2,16 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
 /// Memberikan watermark hari, tanggal, dan jam secara real-time pada foto
-/// di pojok kiri bawah.
+/// di pojok kiri bawah, sekaligus menormalkan orientasi/mirror EXIF kamera.
 Uint8List applyJournalPhotoWatermark(List<int> rawBytes, {DateTime? timestamp}) {
   try {
-    final image = img.decodeImage(Uint8List.fromList(rawBytes));
-    if (image == null) {
+    final decoded = img.decodeImage(Uint8List.fromList(rawBytes));
+    if (decoded == null) {
       return Uint8List.fromList(rawBytes);
     }
+
+    // Otomatis normalkan orientasi & unmirror EXIF bawaan kamera HP
+    final image = img.bakeOrientation(decoded);
 
     final now = timestamp ?? DateTime.now();
 

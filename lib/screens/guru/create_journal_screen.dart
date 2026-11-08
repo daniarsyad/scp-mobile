@@ -44,6 +44,7 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
   late final JournalDraftStore _store;
   late final ApiService _api;
   JournalDraft? _draft;
+  Uint8List? _rawPhotoBytes;
   List<Map<String, dynamic>> _roster = [];
   Future<void> _saveQueue = Future<void>.value();
   bool _loadingDraft = true;
@@ -258,71 +259,21 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
   Future<void> _pickPhoto() async {
     if (_submissionUncertain) return;
 
-    if (widget.pickImage != null) {
-      final photo = await widget.pickImage!(ImageSource.camera);
-      if (photo != null) await _processPhoto(photo, isFrontCamera: false);
-      return;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(bottom: 12),
-                child: Text(
-                  'Ambil Foto Dokumentasi Real-Time',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt_outlined, color: Color(0xFF1D4ED8)),
-                title: const Text('Kamera Belakang (Foto Kegiatan Kelas)'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  final photo = await _picker.pickImage(
-                    source: ImageSource.camera,
-                    imageQuality: 75,
-                    maxWidth: 1280,
-                    maxHeight: 1280,
-                    preferredCameraDevice: CameraDevice.rear,
-                  );
-                  if (photo != null) await _processPhoto(photo, isFrontCamera: false);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_front_outlined, color: Colors.teal),
-                title: const Text('Kamera Depan (Selfie Guru Tidak Terbalik)'),
-                subtitle: const Text('Otomatis di-unmirror agar foto selfie tetap normal'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  final photo = await _picker.pickImage(
-                    source: ImageSource.camera,
-                    imageQuality: 75,
-                    maxWidth: 1280,
-                    maxHeight: 1280,
-                    preferredCameraDevice: CameraDevice.front,
-                  );
-                  if (photo != null) await _processPhoto(photo, isFrontCamera: true);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    final photo = widget.pickImage != null
+        ? await widget.pickImage!(ImageSource.camera)
+        : await _picker.pickImage(
+            source: ImageSource.camera,
+            imageQuality: 75,
+            maxWidth: 1280,
+            maxHeight: 1280,
+          );
+    if (photo == null) return;
+    await _processPhoto(photo);
   }
 
-  Future<void> _processPhoto(XFile photo, {bool isFrontCamera = false}) async {
+  Future<void> _processPhoto(XFile photo) async {
     try {
-      var bytes = await photo.readAsBytes();
+      final bytes = await photo.readAsBytes();
       if (bytes.length > _maxPhotoBytes) {
         setState(() => _error = 'Ukuran foto maksimal 2 MiB.');
         return;
@@ -334,13 +285,9 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
         return;
       }
 
-      // Jika diambil via kamera depan (selfie), unmirror terlebih dahulu
-      if (isFrontCamera && widget.pickImage == null) {
-        bytes = flipImageHorizontal(bytes);
-      }
-
-      // Berikan watermark hari, tanggal, dan jam real-time pada foto
+      // Normalkan orientasi/mirror EXIF & berikan watermark hari, tanggal, dan jam real-time pada foto
       // Catatan: Jika pickImage di-inject untuk test, jangan modifikasi bytes agar contract test tetap terjaga
+      _rawPhotoBytes = bytes;
       final watermarkedBytes = widget.pickImage == null
           ? applyJournalPhotoWatermark(bytes)
           : bytes;
@@ -364,7 +311,13 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
     final draft = _draft;
     final photoBytes = draft?.photoBytes;
     if (draft == null || photoBytes == null) return;
-    final flipped = flipImageHorizontal(photoBytes);
+    final Uint8List flipped;
+    if (_rawPhotoBytes != null && widget.pickImage == null) {
+      _rawPhotoBytes = flipImageHorizontal(_rawPhotoBytes!);
+      flipped = applyJournalPhotoWatermark(_rawPhotoBytes!);
+    } else {
+      flipped = flipImageHorizontal(photoBytes);
+    }
     _updateDraft(draft.copyWith(
       photoBase64: base64Encode(flipped),
     ));
