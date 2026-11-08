@@ -26,7 +26,7 @@ class ScpApp extends StatelessWidget {
       animation: AppThemeController.instance,
       builder: (context, _) => MaterialApp(
         navigatorKey: navigatorKey,
-        title: 'SCP School',
+        title: 'SCP',
         debugShowCheckedModeBanner: false,
         theme: scpTheme(),
         darkTheme: scpDarkTheme(),

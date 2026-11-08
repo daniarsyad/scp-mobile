@@ -367,17 +367,29 @@ class _RoleScheduleScreenState extends State<RoleScheduleScreen> {
           const SizedBox(height: 14),
           if (displayError != null)
             ScpEmpty(
-              message: displayError,
-              icon: error != null
-                  ? Icons.cloud_off_outlined
-                  : Icons.info_outline_rounded,
+              message: _selectedView == 0 && (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday)
+                  ? 'Hari ini libur akhir pekan (tidak ada jadwal pelajaran)'
+                  : (displayError.toLowerCase().contains('server error')
+                      ? (_selectedView == 0
+                          ? 'Tidak ada jadwal pelajaran hari ini'
+                          : 'Belum ada jadwal pada Putaran $_selectedView')
+                      : displayError),
+              icon: _selectedView == 0 && (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday)
+                  ? Icons.weekend_outlined
+                  : (error != null
+                      ? Icons.cloud_off_outlined
+                      : Icons.info_outline_rounded),
             )
           else if (schedules.isEmpty)
             ScpEmpty(
               message: _selectedView == 0
-                  ? 'Tidak ada jadwal pelajaran hari ini'
+                  ? (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday
+                      ? 'Hari ini libur akhir pekan (tidak ada jadwal pelajaran)'
+                      : 'Tidak ada jadwal pelajaran hari ini')
                   : 'Belum ada jadwal pada Putaran $_selectedView',
-              icon: Icons.event_busy_outlined,
+              icon: _selectedView == 0 && (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday)
+                  ? Icons.weekend_outlined
+                  : Icons.event_busy_outlined,
             )
           else
             for (var index = 0; index < schedules.length; index++)

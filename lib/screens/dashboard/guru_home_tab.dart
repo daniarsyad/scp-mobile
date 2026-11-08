@@ -412,8 +412,12 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
                 child: ScpEmpty(
                   message: _hiddenCount > 0
                       ? 'Jadwal berikutnya akan tampil saat jam pelajarannya dimulai'
-                      : 'Tidak ada jadwal mengajar pada hari ini',
-                  icon: Icons.event_available_outlined,
+                      : (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday
+                          ? 'Hari ini libur akhir pekan (tidak ada jadwal mengajar)'
+                          : 'Tidak ada jadwal mengajar pada hari ini'),
+                  icon: (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday)
+                      ? Icons.weekend_outlined
+                      : Icons.event_available_outlined,
                 ),
               )
             else

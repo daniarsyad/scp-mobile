@@ -10,7 +10,14 @@ class ApiConfig {
   // - Mode HP Fisik (Wi-Fi Laptop): 'http://192.168.x.x:8000/api'
   // - Mode Web / Localhost: 'http://127.0.0.1:8000/api'
   
+<<<<<<< HEAD
   static const String _defaultUrl = 'http://127.0.0.1:8000/api'; // Mode Lokal / Web
+=======
+  // Mode Hosting / Production:
+  static const String _defaultUrl = 'https://escepegaul.web.id/api';
+  // Mode Emulator Android: 'http://10.0.2.2:8000/api'
+  // Mode Lokal / Web: 'http://127.0.0.1:8000/api'
+>>>>>>> 5d91cbca66fe245e23f79344b450fac65f588365
 
   static String? _customUrl;
 
