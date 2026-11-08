@@ -251,7 +251,14 @@ class _SplashEmblem extends StatelessWidget {
           ),
         ],
       ),
-      child: Image.asset('assets/images/logo-smkn1.png', fit: BoxFit.contain),
+      child: Image.asset(
+        'assets/images/logo-smkn1.png',
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => Image.asset(
+          'assets/images/Logo.png',
+          fit: BoxFit.contain,
+        ),
+      ),
     );
   }
 }

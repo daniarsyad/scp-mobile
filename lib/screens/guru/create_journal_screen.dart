@@ -257,16 +257,86 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
 
   Future<void> _pickPhoto() async {
     if (_submissionUncertain) return;
+
+    if (widget.pickImage != null) {
+      final photo = await widget.pickImage!(ImageSource.camera);
+      if (photo != null) await _processPhoto(photo, isFrontCamera: false);
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'Pilih Sumber Foto Dokumentasi',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined, color: Color(0xFF1D4ED8)),
+                title: const Text('Kamera Belakang (Foto Kegiatan Kelas)'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final photo = await _picker.pickImage(
+                    source: ImageSource.camera,
+                    imageQuality: 75,
+                    maxWidth: 1280,
+                    maxHeight: 1280,
+                    preferredCameraDevice: CameraDevice.rear,
+                  );
+                  if (photo != null) await _processPhoto(photo, isFrontCamera: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_front_outlined, color: Colors.teal),
+                title: const Text('Kamera Depan (Selfie Guru Tidak Terbalik)'),
+                subtitle: const Text('Otomatis di-unmirror agar foto selfie tetap normal'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final photo = await _picker.pickImage(
+                    source: ImageSource.camera,
+                    imageQuality: 75,
+                    maxWidth: 1280,
+                    maxHeight: 1280,
+                    preferredCameraDevice: CameraDevice.front,
+                  );
+                  if (photo != null) await _processPhoto(photo, isFrontCamera: true);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: Colors.deepPurple),
+                title: const Text('Pilih dari Galeri'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final photo = await _picker.pickImage(
+                    source: ImageSource.gallery,
+                    imageQuality: 75,
+                    maxWidth: 1280,
+                    maxHeight: 1280,
+                  );
+                  if (photo != null) await _processPhoto(photo, isFrontCamera: false);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processPhoto(XFile photo, {bool isFrontCamera = false}) async {
     try {
-      final photo = widget.pickImage == null
-          ? await _picker.pickImage(
-              source: ImageSource.camera,
-              imageQuality: 70,
-              preferredCameraDevice: CameraDevice.rear,
-            )
-          : await widget.pickImage!(ImageSource.camera);
-      if (photo == null) return;
-      final bytes = await photo.readAsBytes();
+      var bytes = await photo.readAsBytes();
       if (bytes.length > _maxPhotoBytes) {
         setState(() => _error = 'Ukuran foto maksimal 2 MiB.');
         return;
@@ -276,6 +346,11 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
       if (contentType == null) {
         setState(() => _error = 'Foto harus berformat JPEG atau PNG.');
         return;
+      }
+
+      // Jika diambil via kamera depan (selfie), unmirror terlebih dahulu
+      if (isFrontCamera && widget.pickImage == null) {
+        bytes = flipImageHorizontal(bytes);
       }
 
       // Berikan watermark hari, tanggal, dan jam real-time pada foto
@@ -295,8 +370,24 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
       );
       setState(() => _error = null);
     } catch (error) {
-      if (mounted) setState(() => _error = 'Gagal memilih foto: $error');
+      if (mounted) setState(() => _error = 'Gagal memproses foto: $error');
     }
+  }
+
+  void _flipCurrentPhoto() {
+    final draft = _draft;
+    final photoBytes = draft?.photoBytes;
+    if (draft == null || photoBytes == null) return;
+    final flipped = flipImageHorizontal(photoBytes);
+    _updateDraft(draft.copyWith(
+      photoBase64: base64Encode(flipped),
+    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Foto berhasil dibalik (unmirror)'),
+        duration: Duration(seconds: 1),
+      ),
+    );
   }
 
   String? _imageContentType(XFile file) {
@@ -831,12 +922,23 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
               fit: BoxFit.cover,
             ),
           ),
-          TextButton.icon(
-            onPressed: locked
-                ? null
-                : () => _updateDraft(draft!.copyWith(removePhoto: true)),
-            icon: const Icon(Icons.delete_outline),
-            label: const Text('Hapus foto'),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: locked ? null : _flipCurrentPhoto,
+                icon: const Icon(Icons.flip_rounded, size: 18),
+                label: const Text('Balik Foto (Unmirror)'),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: locked
+                    ? null
+                    : () => _updateDraft(draft!.copyWith(removePhoto: true)),
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                label: const Text('Hapus foto', style: TextStyle(color: Colors.red)),
+              ),
+            ],
           ),
         ],
         const SizedBox(height: 24),

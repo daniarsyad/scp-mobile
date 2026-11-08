@@ -13,7 +13,7 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String identifier, String password) async {
     try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.login}');
+      final uri = ApiConfig.buildUri(ApiConfig.login);
       final headers = {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -29,12 +29,22 @@ class AuthService {
                   : client!.post(uri, headers: headers, body: body))
               .timeout(const Duration(seconds: 15));
 
-      final decoded = response.body.isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(response.body);
-      final data = decoded is Map
-          ? Map<String, dynamic>.from(decoded)
-          : <String, dynamic>{};
+      Map<String, dynamic> data = {};
+      try {
+        if (response.body.isNotEmpty) {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map) {
+            data = Map<String, dynamic>.from(decoded);
+          }
+        }
+      } catch (_) {
+        data = {
+          'success': false,
+          'message': response.statusCode == 404
+              ? 'Rute login tidak ditemukan di server (404).'
+              : 'Server mengembalikan respons tidak valid (HTTP ${response.statusCode}).',
+        };
+      }
       final payload = data['data'] is Map
           ? Map<String, dynamic>.from(data['data'])
           : data;
@@ -71,7 +81,13 @@ class AuthService {
         'message': _responseMessage(data),
       };
     } catch (e) {
-      return {'success': false, 'message': 'Gagal koneksi: $e'};
+      final str = e.toString();
+      final msg = str.contains('SocketException') || str.contains('Failed host lookup')
+          ? 'Gagal terhubung ke server. Pastikan perangkat dan laptop terhubung ke jaringan/Wi-Fi yang sama.'
+          : str.contains('TimeoutException')
+          ? 'Waktu koneksi habis (timeout). Silakan periksa jaringan Anda.'
+          : 'Gagal koneksi: $e';
+      return {'success': false, 'message': msg};
     }
   }
 
@@ -99,7 +115,7 @@ class AuthService {
 
     if (token != null && token.isNotEmpty) {
       try {
-        final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.logout}');
+        final uri = ApiConfig.buildUri(ApiConfig.logout);
         final headers = {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
@@ -141,7 +157,7 @@ class AuthService {
     }
 
     try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.profile}');
+      final uri = ApiConfig.buildUri(ApiConfig.profile);
       final headers = {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -164,8 +180,18 @@ class AuthService {
               : client!.put(uri, headers: headers, body: jsonEncode(bodyMap)))
           .timeout(const Duration(seconds: 15));
 
-      final decoded = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
-      final data = decoded is Map ? Map<String, dynamic>.from(decoded) : <String, dynamic>{};
+      Map<String, dynamic> data = {};
+      try {
+        if (response.body.isNotEmpty) {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map) data = Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {
+        data = {
+          'success': false,
+          'message': 'Server mengembalikan respons tidak valid (HTTP ${response.statusCode}).',
+        };
+      }
 
       if (response.statusCode == 200 && data['success'] == true) {
         final payload = data['data'] is Map ? Map<String, dynamic>.from(data['data']) : null;

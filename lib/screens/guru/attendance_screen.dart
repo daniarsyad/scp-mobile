@@ -94,8 +94,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       final response = await http
           .post(
-            Uri.parse(
-              '${ApiConfig.baseUrl}${ApiConfig.attendanceUpdate}/$attendanceId/status',
+            ApiConfig.buildUri(
+              '${ApiConfig.attendanceUpdate}/$attendanceId/status',
             ),
             headers: {
               'Accept': 'application/json',
@@ -106,7 +106,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           )
           .timeout(const Duration(seconds: 15));
 
-      final data = jsonDecode(response.body);
+      Map<String, dynamic> data = {};
+      try {
+        if (response.body.isNotEmpty) {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map) {
+            data = Map<String, dynamic>.from(decoded);
+          }
+        }
+      } catch (_) {}
       if (!mounted) return;
 
       if (response.statusCode >= 200 && response.statusCode < 300) {

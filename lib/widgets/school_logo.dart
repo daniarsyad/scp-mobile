@@ -26,10 +26,14 @@ class SchoolLogo extends StatelessWidget {
       child: Image.asset(
         'assets/images/logo-smkn1.png',
         fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => Icon(
-          Icons.school_rounded,
-          color: Theme.of(context).colorScheme.primary,
-          size: size * 0.62,
+        errorBuilder: (context, error, stackTrace) => Image.asset(
+          'assets/images/Logo.png',
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => Icon(
+            Icons.school_rounded,
+            color: Theme.of(context).colorScheme.primary,
+            size: size * 0.62,
+          ),
         ),
       ),
     );

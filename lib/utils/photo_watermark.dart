@@ -128,3 +128,17 @@ Uint8List applyJournalPhotoWatermark(List<int> rawBytes, {DateTime? timestamp}) 
   }
 }
 
+/// Membalik (flip horizontal / un-mirror) foto selfie sehingga tidak terbalik.
+Uint8List flipImageHorizontal(List<int> rawBytes) {
+  try {
+    final image = img.decodeImage(Uint8List.fromList(rawBytes));
+    if (image == null) return Uint8List.fromList(rawBytes);
+
+    final flipped = img.flipHorizontal(image);
+    return Uint8List.fromList(img.encodeJpg(flipped, quality: 85));
+  } catch (_) {
+    return Uint8List.fromList(rawBytes);
+  }
+}
+
+

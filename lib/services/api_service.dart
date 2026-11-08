@@ -53,7 +53,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> get(String path) async {
     try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+      final uri = ApiConfig.buildUri(path);
       final headers = await _headers();
       final response =
           await (client == null
@@ -65,12 +65,7 @@ class ApiService {
         await _handleUnauthorized();
       }
 
-      final decoded = response.body.isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(response.body);
-      final data = decoded is Map
-          ? Map<String, dynamic>.from(decoded)
-          : <String, dynamic>{'data': decoded};
+      final data = _safeDecode(response);
       return {
         'success':
             response.statusCode == 200 &&
@@ -100,7 +95,7 @@ class ApiService {
         ),
       };
     } catch (e) {
-      return {'success': false, 'message': 'Gagal koneksi: $e'};
+      return {'success': false, 'message': _formatException(e)};
     }
   }
 
@@ -109,7 +104,7 @@ class ApiService {
     Map<String, dynamic> body,
   ) async {
     try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+      final uri = ApiConfig.buildUri(path);
       final headers = await _headers();
       final response =
           await (client == null
@@ -121,12 +116,7 @@ class ApiService {
         await _handleUnauthorized();
       }
 
-      final decoded = response.body.isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(response.body);
-      final data = decoded is Map
-          ? Map<String, dynamic>.from(decoded)
-          : <String, dynamic>{'data': decoded};
+      final data = _safeDecode(response);
       return {
         'success':
             response.statusCode >= 200 &&
@@ -153,7 +143,7 @@ class ApiService {
         ),
       };
     } catch (e) {
-      return {'success': false, 'message': 'Gagal koneksi: $e'};
+      return {'success': false, 'message': _formatException(e)};
     }
   }
 
@@ -168,7 +158,7 @@ class ApiService {
   }) async {
     try {
       final request =
-          http.MultipartRequest('POST', Uri.parse('${ApiConfig.baseUrl}$path'))
+          http.MultipartRequest('POST', ApiConfig.buildUri(path))
             ..headers.addAll(await _headers(json: false))
             ..headers['Idempotency-Key'] = idempotencyKey
             ..fields.addAll(fields)
@@ -189,12 +179,7 @@ class ApiService {
         await _handleUnauthorized();
       }
 
-      final payload = response.body.isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(response.body);
-      final body = payload is Map
-          ? Map<String, dynamic>.from(payload)
-          : <String, dynamic>{};
+      final body = _safeDecode(response);
       return {
         'success':
             (response.statusCode == 200 || response.statusCode == 201) &&
@@ -224,9 +209,53 @@ class ApiService {
       return {
         'success': false,
         'statusCode': null,
-        'message': 'Gagal koneksi: $error',
+        'message': _formatException(error),
       };
     }
+  }
+
+  Map<String, dynamic> _safeDecode(http.Response response) {
+    if (response.body.isEmpty) return <String, dynamic>{};
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+      return <String, dynamic>{'data': decoded};
+    } catch (_) {
+      final code = response.statusCode;
+      String err;
+      if (code == 404) {
+        err = 'Rute API tidak ditemukan pada server (HTTP 404). Pastikan URL server benar.';
+      } else if (code == 500) {
+        err = 'Terjadi kesalahan internal pada server web/Laravel (HTTP 500).';
+      } else if (code == 502 || code == 503 || code == 504) {
+        err = 'Server sedang gangguan atau tidak dapat dijangkau (HTTP $code).';
+      } else if (code == 413) {
+        err = 'Ukuran berkas/foto terlalu besar untuk diproses server (HTTP 413).';
+      } else {
+        err = 'Server mengembalikan respons tidak valid (HTTP $code).';
+      }
+      return <String, dynamic>{
+        'success': false,
+        'message': err,
+        'data': null,
+      };
+    }
+  }
+
+  String _formatException(dynamic error) {
+    final str = error.toString();
+    if (str.contains('SocketException') || str.contains('Failed host lookup')) {
+      return 'Gagal terhubung ke server. Pastikan perangkat dan laptop terhubung ke jaringan/Wi-Fi yang sama.';
+    }
+    if (str.contains('TimeoutException')) {
+      return 'Waktu koneksi habis (timeout). Silakan periksa jaringan dan coba lagi.';
+    }
+    if (str.contains('Connection refused')) {
+      return 'Koneksi ditolak oleh server. Pastikan layanan backend (php artisan serve / Laragon) aktif.';
+    }
+    return 'Gagal koneksi: $error';
   }
 
   String _responseMessage(Map<String, dynamic> body, String fallback) {
@@ -294,7 +323,7 @@ class ApiService {
 
   Future<http.Response> download(String path) async {
     final headers = await _headers(json: false);
-    final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+    final uri = ApiConfig.buildUri(path);
     return (client == null
             ? http.get(uri, headers: headers)
             : client!.get(uri, headers: headers))
