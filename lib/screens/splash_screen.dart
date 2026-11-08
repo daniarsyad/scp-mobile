@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/auth_service.dart';
+import 'home_screen.dart';
 import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -57,13 +59,30 @@ class _SplashScreenState extends State<SplashScreen>
     _navigationTimer = Timer(const Duration(milliseconds: 1200), _openLogin);
   }
 
-  void _openLogin() {
+  Future<void> _openLogin() async {
+    if (!mounted) return;
+
+    Widget destination = const LoginScreen();
+    try {
+      final auth = AuthService();
+      final token = await auth.getToken().timeout(
+        const Duration(milliseconds: 250),
+      );
+      if (token != null && token.isNotEmpty) {
+        final savedUser = await auth.getSavedUser().timeout(
+          const Duration(milliseconds: 250),
+        );
+        if (savedUser != null && !savedUser.isWaka) {
+          destination = HomeScreen(user: savedUser);
+        }
+      }
+    } catch (_) {}
+
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const LoginScreen(),
+        pageBuilder: (context, animation, secondaryAnimation) => destination,
         transitionDuration: const Duration(milliseconds: 400),
         transitionsBuilder: (context, animation, secondaryAnimation, child) =>
             FadeTransition(opacity: animation, child: child),

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/api_config.dart';
 import '../../services/api_service.dart';
 import '../../theme/scp_theme.dart';
+import '../../utils/live_refresh.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final int journalId;
@@ -109,6 +110,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       if (!mounted) return;
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
+        LiveRefresh.pingAttendances();
         await _load();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

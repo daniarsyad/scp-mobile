@@ -38,8 +38,14 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
       setState(() {
         if (isStart) {
           _startDate = picked;
+          if (_endDate != null && _endDate!.isBefore(picked)) {
+            _endDate = picked;
+          }
         } else {
           _endDate = picked;
+          if (_startDate != null && picked.isBefore(_startDate!)) {
+            _startDate = picked;
+          }
         }
       });
     }
@@ -68,10 +74,6 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
       setState(() => _error = 'Alasan wajib diisi');
       return;
     }
-    if (_document == null) {
-      setState(() => _error = 'Ambil foto surat dokter');
-      return;
-    }
 
     setState(() {
       _loading = true;
@@ -98,15 +100,19 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
       request.fields['reason'] = _reasonController.text.trim();
       request.fields['leave_type'] = _leaveType;
 
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'document',
-          _docBytes!,
-          filename: 'surat_${DateTime.now().millisecondsSinceEpoch}.jpg',
-        ),
-      );
+      if (_docBytes != null) {
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'document',
+            _docBytes!,
+            filename: 'surat_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          ),
+        );
+      }
 
-      final streamed = await request.send();
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 25),
+      );
       final response = await http.Response.fromStream(streamed);
       final payload = response.body.isEmpty ? null : jsonDecode(response.body);
 

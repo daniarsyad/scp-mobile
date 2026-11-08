@@ -472,7 +472,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Bpk Orang Tua'), findsOneWidget);
+    expect(find.textContaining('Wali dari Dani Arsyad Razak'), findsWidgets);
     expect(find.textContaining('Dani Arsyad Razak'), findsWidgets);
     expect(find.textContaining('XII RPL 2'), findsWidgets);
     expect(find.byType(ChoiceChip), findsOneWidget);

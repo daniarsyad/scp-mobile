@@ -144,8 +144,8 @@ class _OrtuHomeTabState extends State<OrtuHomeTab> {
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
         children: [
           ScpGreeting(
-            line: greetingLine(),
-            name: name,
+            line: 'Selamat datang • ${greetingLine()}',
+            name: _children.isNotEmpty ? 'Wali dari $childName' : name,
             roleName: 'Orang Tua / Wali',
           ),
           const SizedBox(height: 16),

@@ -7,7 +7,7 @@ import '../../theme/scp_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/live_refresh.dart';
 import '../../widgets/dashboard_kit.dart';
-import '../attendance_report_screen.dart';
+import 'attendance_screen.dart';
 import 'create_journal_screen.dart';
 
 class KbmRecapScreen extends StatefulWidget {
@@ -105,7 +105,11 @@ class _KbmRecapScreenState extends State<KbmRecapScreen> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => AttendanceReportScreen(isBk: false, user: widget.user),
+          builder: (_) => AttendanceScreen(
+            journalId: asInt(filled['id']),
+            subject: schedule['subject']?.toString() ?? 'Pelajaran',
+            className: asMap(schedule['class'])['class_name']?.toString() ?? '-',
+          ),
         ),
       );
       return;

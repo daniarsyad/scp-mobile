@@ -191,7 +191,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   value: _user.email!,
                 ),
               ],
-              if (_user.className != null && _user.className!.isNotEmpty) ...[
+              if (_user.displayClassName != null &&
+                  _user.displayClassName!.isNotEmpty) ...[
                 Divider(
                   height: 1,
                   color: colors.outline.withValues(alpha: 0.35),
@@ -199,8 +200,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _infoTile(
                   context,
                   icon: Icons.groups_outlined,
-                  label: 'Kelas',
-                  value: _user.className!,
+                  label: _user.isGuruBK ? 'Kelas Binaan' : 'Kelas',
+                  value: _user.isGuruBK && _user.bkClassNames.isNotEmpty
+                      ? _user.bkClassNames.join(', ')
+                      : _user.displayClassName!,
                 ),
               ],
             ],

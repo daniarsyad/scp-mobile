@@ -153,7 +153,7 @@ class _TodayScheduleScreenState extends State<TodayScheduleScreen> {
                                 Text(
                                   _time('${TimeOfDay.now().hour.toString().padLeft(2, '0')}:${TimeOfDay.now().minute.toString().padLeft(2, '0')}'),
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
+                                    color: Colors.white.withValues(alpha: 0.9),
                                     fontSize: 13,
                                   ),
                                 ),
@@ -184,7 +184,7 @@ class _TodayScheduleScreenState extends State<TodayScheduleScreen> {
                                 boxShadow: ongoing
                                     ? [
                                         BoxShadow(
-                                          color: const Color(0xFF16A34A).withOpacity(0.12),
+                                          color: const Color(0xFF16A34A).withValues(alpha: 0.12),
                                           blurRadius: 8,
                                           offset: const Offset(0, 2),
                                         )
@@ -227,8 +227,8 @@ class _TodayScheduleScreenState extends State<TodayScheduleScreen> {
                                           padding: const EdgeInsets.symmetric(vertical: 10),
                                           decoration: BoxDecoration(
                                             color: ongoing
-                                                ? const Color(0xFF16A34A).withOpacity(0.12)
-                                                : const Color(0xFF1D4ED8).withOpacity(0.08),
+                                                ? const Color(0xFF16A34A).withValues(alpha: 0.12)
+                                                : const Color(0xFF1D4ED8).withValues(alpha: 0.08),
                                             borderRadius: BorderRadius.circular(10),
                                           ),
                                           child: Column(

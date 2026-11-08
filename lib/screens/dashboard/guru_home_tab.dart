@@ -10,6 +10,7 @@ import '../../utils/format.dart';
 import '../../utils/live_refresh.dart';
 import '../../widgets/dashboard_kit.dart';
 import '../attendance_report_screen.dart';
+import '../guru/attendance_screen.dart';
 import '../guru/create_journal_screen.dart';
 import '../edit_profile_screen.dart';
 import '../../services/journal_draft_store.dart';
@@ -144,16 +145,37 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
     final filled = journalForToday(schedule);
     bool? saved;
     if (filled != null) {
+      final journalId = asInt(filled['id'] ?? filled['journal_id']);
+      if (journalId != 0) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AttendanceScreen(
+              journalId: journalId,
+              subject: schedule['subject']?.toString() ?? 'Pelajaran',
+              className: asMap(schedule['class'])['class_name']?.toString() ?? '-',
+            ),
+          ),
+        );
+        return;
+      }
       if (widget.onNavigateTab != null && widget.attendanceTabIndex != null) {
         widget.onNavigateTab!(widget.attendanceTabIndex!);
         return;
       }
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AttendanceReportScreen(isBk: false, user: widget.user),
-        ),
-      );
+      if (widget.user.isWaliKelas || widget.user.isGuruBK) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AttendanceReportScreen(
+              isBk: widget.user.isGuruBK,
+              user: widget.user,
+            ),
+          ),
+        );
+      } else if (widget.onNavigateTab != null) {
+        widget.onNavigateTab!(widget.journalTabIndex);
+      }
       return;
     } else {
       saved = await Navigator.push<bool>(
@@ -193,6 +215,7 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
             line: greetingLine(),
             name: name,
             roleName: widget.user.roleName ?? 'Guru Pengajar',
+            className: widget.user.displayClassName,
             onEditProfile: () async {
               final updated = await Navigator.push<UserModel>(
                 context,

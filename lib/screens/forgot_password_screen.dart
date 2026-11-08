@@ -220,7 +220,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             // Step 2: OTP
             if (_step == 2) ...[
               TextField(
-                controller: TextEditingController(text: _email.text),
+                controller: _email,
                 enabled: false,
                 decoration: const InputDecoration(
                   labelText: 'Email',

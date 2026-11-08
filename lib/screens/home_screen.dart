@@ -227,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onProfileUpdated: _onProfileUpdated,
         ),
         AttendanceReportScreen(isBk: true, user: user, embedded: true),
-        const PendingLeavesScreen(isBk: true, embedded: true),
+        PendingLeavesScreen(isBk: true, embedded: true, user: user),
         GuruHomeTab(
           user: user,
           onNavigateTab: _navigateToTab,
@@ -261,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<ScpNavItem> _navigation() {
-    final user = widget.user;
+    final user = _currentUser;
     if (user.isGuru) {
       return const [
         ScpNavItem(Icons.home_rounded, 'Home'),
@@ -389,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Expanded(
                           child: ScpRoleBadge(
                             roleName: user.roleName ?? 'Pengguna',
-                            className: user.className,
+                            className: user.displayClassName,
                           ),
                         ),
                         InkWell(
@@ -669,9 +669,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     final badgeText = user.isOrangTua
                         ? (_selectedChild?['class_name']?.toString() ??
                             asMap(_selectedChild?['class'])['class_name']?.toString() ??
-                            user.className ??
+                            user.displayClassName ??
                             '')
-                        : (user.className ?? '');
+                        : (user.displayClassName ?? '');
                     if (badgeText.isEmpty) return const SizedBox();
                     return Padding(
                       padding: const EdgeInsets.only(right: 4),
@@ -740,9 +740,9 @@ class _HomeScreenState extends State<HomeScreen> {
           : null,
       body: IndexedStack(index: selectedIndex, children: pages),
       floatingActionButton:
-          (widget.user.isGuru ||
-                  widget.user.isWaliKelas ||
-                  widget.user.isGuruBK) &&
+          (user.isGuru ||
+                  user.isWaliKelas ||
+                  user.isGuruBK) &&
               _nextSchedule != null && !scheduleNotStarted(_nextSchedule!)
           ? FloatingActionButton.extended(
               tooltip: 'Isi Jurnal Mengajar',
@@ -751,7 +751,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 MaterialPageRoute(
                   builder: (_) => CreateJournalScreen(
                     schedule: _nextSchedule!,
-                    ownerId: widget.user.id,
+                    ownerId: user.id,
                   ),
                 ),
               ),

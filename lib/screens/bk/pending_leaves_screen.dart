@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../config/api_config.dart';
+import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import '../../theme/scp_theme.dart';
 import '../../utils/format.dart';
@@ -13,6 +14,7 @@ class PendingLeavesScreen extends StatefulWidget {
   final bool isBk;
   final bool embedded;
   final ApiService? api;
+  final UserModel? user;
 
   const PendingLeavesScreen({
     super.key,
@@ -20,6 +22,7 @@ class PendingLeavesScreen extends StatefulWidget {
     this.isBk = false,
     this.embedded = false,
     this.api,
+    this.user,
   });
 
   @override
@@ -100,9 +103,17 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
         }
       }
 
-      // 2. Guru BK: class dropdown filter
-      if (widget.isBk && _selectedClassFilter != 'Semua Kelas') {
-        if (cls != _selectedClassFilter) return false;
+      // 2. Guru BK: assigned classes & class dropdown filter
+      if (widget.isBk) {
+        final bkNames = widget.user?.bkClassNames ?? const <String>[];
+        if (bkNames.isNotEmpty &&
+            !bkNames.any((n) => n.toLowerCase() == cls.toLowerCase())) {
+          return false;
+        }
+        if (_selectedClassFilter != 'Semua Kelas' &&
+            cls != _selectedClassFilter) {
+          return false;
+        }
       }
 
       return true;
@@ -110,7 +121,9 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
   }
 
   List<String> _getAvailableClasses() {
-    final set = <String>{};
+    final set = <String>{
+      if (widget.isBk && widget.user != null) ...widget.user!.bkClassNames,
+    };
     for (final item in _leaves) {
       if (item is Map) {
         set.add(_studentClassName(Map<String, dynamic>.from(item)));
@@ -223,7 +236,7 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
       appBar: AppBar(
         title: Text(
           widget.isBk
-              ? 'Monitoring Izin (Guru BK)'
+              ? 'Verifikasi Izin (Guru BK)'
               : 'Verifikasi Izin ${widget.targetClass ?? ""}',
         ),
         actions: [

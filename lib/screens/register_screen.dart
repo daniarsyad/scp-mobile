@@ -18,6 +18,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _password = TextEditingController();
   final _password2 = TextEditingController();
   final _subject = TextEditingController();
+  final _nis = TextEditingController();
+  final _nip = TextEditingController();
 
   List<dynamic> _roles = [];
   List<dynamic> _classes = []; // Menyimpan daftar kelas
@@ -39,7 +41,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Menentukan apakah field Kelas perlu ditampilkan
   bool get _needClass {
     final name = _selectedRoleName?.toLowerCase() ?? '';
+    return name == 'siswa' || name == 'wali kelas';
+  }
+
+  bool get _needNis {
+    final name = _selectedRoleName?.toLowerCase() ?? '';
     return name == 'siswa';
+  }
+
+  bool get _needNip {
+    final name = _selectedRoleName?.toLowerCase() ?? '';
+    return name == 'guru' || name == 'wali kelas' || name == 'guru bk';
   }
 
   @override
@@ -96,7 +108,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     
     // Validasi Kelas
     if (_needClass && _classId == null) {
-      setState(() => _error = 'Kelas wajib dipilih untuk Siswa');
+      setState(() => _error = 'Kelas wajib dipilih untuk role ini');
+      return;
+    }
+    if (_needNis && _nis.text.trim().isEmpty) {
+      setState(() => _error = 'NIS wajib diisi untuk Siswa');
+      return;
+    }
+    if (_needNip && _nip.text.trim().isEmpty) {
+      setState(() => _error = 'NIP wajib diisi untuk Guru');
       return;
     }
 
@@ -122,6 +142,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // Tambahkan class_id jika diperlukan
     if (_needClass) {
       body['class_id'] = _classId;
+    }
+    if (_needNis) {
+      body['nis'] = _nis.text.trim();
+    }
+    if (_needNip) {
+      body['nip'] = _nip.text.trim();
     }
 
     final result = await _api.post(ApiConfig.register, body);
@@ -154,6 +180,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _password.dispose();
     _password2.dispose();
     _subject.dispose();
+    _nis.dispose();
+    _nip.dispose();
     super.dispose();
   }
 
@@ -215,7 +243,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<int>(
-              value: _roleId,
+              initialValue: _roleId,
               decoration: const InputDecoration(
                 labelText: 'Daftar sebagai',
                 border: OutlineInputBorder(),
@@ -238,15 +266,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   // Reset field tambahan jika role berubah
                   if (!_needSubject) _subject.clear();
                   if (!_needClass) _classId = null;
+                  if (!_needNis) _nis.clear();
+                  if (!_needNip) _nip.clear();
                 });
               },
             ),
+            if (_needNis) ...[
+              const SizedBox(height: 14),
+              TextField(
+                controller: _nis,
+                decoration: const InputDecoration(
+                  labelText: 'NIS',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+            if (_needNip) ...[
+              const SizedBox(height: 14),
+              TextField(
+                controller: _nip,
+                decoration: const InputDecoration(
+                  labelText: 'NIP',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
             
             // Dropdown Kelas (Hanya untuk Siswa)
             if (_needClass) ...[
               const SizedBox(height: 14),
               DropdownButtonFormField<int>(
-                value: _classId,
+                initialValue: _classId,
                 decoration: const InputDecoration(
                   labelText: 'Pilih Kelas',
                   border: OutlineInputBorder(),

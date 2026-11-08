@@ -33,7 +33,32 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
   @override
   void initState() {
     super.initState();
+    LiveRefresh.leaves.addListener(_onRefreshSignal);
     _load();
+  }
+
+  @override
+  void dispose() {
+    LiveRefresh.leaves.removeListener(_onRefreshSignal);
+    super.dispose();
+  }
+
+  void _onRefreshSignal() {
+    if (mounted) _load();
+  }
+
+  List<dynamic> get _filteredLeaves {
+    final childId = int.tryParse('${widget.selectedChild?['id'] ?? ''}');
+    if (widget.user?.isOrangTua == true && childId != null && childId > 0) {
+      return _leaves.where((raw) {
+        if (raw is! Map) return false;
+        final itemStudentId = int.tryParse(
+          '${raw['student_id'] ?? (raw['student'] is Map ? raw['student']['id'] : '')}',
+        );
+        return itemStudentId == null || itemStudentId == childId;
+      }).toList();
+    }
+    return _leaves;
   }
 
   Future<void> _load() async {
@@ -57,11 +82,12 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
   }
 
   Future<void> _createLeave() async {
+    final childId = int.tryParse('${widget.selectedChild?['id'] ?? ''}');
     final ok = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => (widget.user?.isOrangTua == true)
-            ? const CreateLeaveOrtuScreen()
+            ? CreateLeaveOrtuScreen(initialStudentId: childId)
             : const CreateLeaveScreen(),
       ),
     );
@@ -198,7 +224,7 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
                         style: const TextStyle(color: Colors.red),
                       ),
                     )
-                  : _leaves.isEmpty
+                  : _filteredLeaves.isEmpty
                   ? Center(
                       child: Padding(
                         padding: const EdgeInsets.all(32),
@@ -251,9 +277,9 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
                           horizontal: 24,
                           vertical: 10,
                         ),
-                        itemCount: _leaves.length,
+                        itemCount: _filteredLeaves.length,
                         itemBuilder: (context, index) {
-                          final item = _leaves[index] as Map;
+                          final item = _filteredLeaves[index] as Map;
                           final status = _statusLabel(item);
                           final reason = item['reason']?.toString() ?? '-';
                           final leaveType =

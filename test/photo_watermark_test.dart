@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:scp_mobile/utils/photo_watermark.dart';
@@ -23,7 +20,7 @@ void main() {
     final decoded = img.decodeImage(watermarked);
     expect(decoded, isNotNull);
     expect(decoded!.width, 400);
-    expect(decoded!.height, 300);
+    expect(decoded.height, 300);
   });
 }
 

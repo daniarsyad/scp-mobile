@@ -149,7 +149,9 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
     if (hasStudentContext) {
       final today = results[1];
       if (today['success'] == true) {
-        scheduleRows.addAll(_todaySchedules(today['data']));
+        scheduleRows.addAll(
+          _todaySchedules(today['schedules'] ?? today['data']),
+        );
       } else {
         dashboardError = today['message']?.toString().isNotEmpty == true
             ? today['message'].toString()
@@ -196,7 +198,27 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
   }
 
   List<Map<String, dynamic>> _todaySchedules(dynamic data) {
-    if (data is List) return data.map(asMap).toList();
+    if (data is List) {
+      final extracted = <Map<String, dynamic>>[];
+      for (final raw in data) {
+        final item = asMap(raw);
+        if (item['schedules'] is List) {
+          final studentId = _readId(asMap(item['student'])['id']);
+          if (!widget.isParent ||
+              _selectedStudentId == null ||
+              studentId == null ||
+              studentId == _selectedStudentId) {
+            for (final sched in asList(item['schedules'])) {
+              final schedMap = asMap(sched);
+              if (schedMap.isNotEmpty) extracted.add(schedMap);
+            }
+          }
+        } else if (item['subject'] != null || item['start_time'] != null) {
+          extracted.add(item);
+        }
+      }
+      return extracted;
+    }
     final payload = asMap(data);
     final candidates = [
       payload['schedules'],
@@ -205,7 +227,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
       payload['data'],
     ];
     for (final candidate in candidates) {
-      if (candidate is List) return candidate.map(asMap).toList();
+      if (candidate is List) return _todaySchedules(candidate);
     }
     return [];
   }
@@ -216,8 +238,21 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
     return parsed != null && parsed > 0 ? parsed : null;
   }
 
+  List<Map<String, dynamic>> get _scopedLeaves {
+    if (widget.isParent && _selectedStudentId != null) {
+      return _leaves.where((item) {
+        final itemStudentId = _readId(
+          item['student_id'] ?? asMap(item['student'])['id'],
+        );
+        return itemStudentId == null || itemStudentId == _selectedStudentId;
+      }).toList();
+    }
+    return _leaves;
+  }
+
   int _countStatus(String status) {
-    return _leaves.where((item) {
+    return _scopedLeaves.where((item) {
+      if (item['cancelled_at'] != null) return false;
       final value = (item['status_approval'] ?? item['status'] ?? 'Pending')
           .toString();
       return value.toLowerCase() == status.toLowerCase();
@@ -229,7 +264,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
       context,
       MaterialPageRoute(
         builder: (_) => widget.isParent
-            ? const CreateLeaveOrtuScreen()
+            ? CreateLeaveOrtuScreen(initialStudentId: _selectedStudentId)
             : const CreateLeaveScreen(),
       ),
     );
@@ -239,9 +274,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
   @override
   Widget build(BuildContext context) {
     final greetingName = widget.isParent
-        ? (widget.user.fullname.isNotEmpty
-            ? widget.user.fullname
-            : 'Orang Tua Siswa')
+        ? 'Wali dari $_selectedChildName'
         : (widget.user.fullname.isEmpty ? 'Siswa' : widget.user.fullname);
     final approved = _countStatus('Approved');
     final pending = _countStatus('Pending');
@@ -259,12 +292,14 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
         children: [
           ScpGreeting(
-            line: greetingLine(),
+            line: widget.isParent
+                ? 'Selamat datang • ${greetingLine()}'
+                : greetingLine(),
             name: greetingName,
             roleName: widget.isParent ? 'Orang Tua' : 'Siswa',
             className: widget.isParent
                 ? (_selectedChild != null
-                    ? 'Wali dari $_selectedChildName'
+                    ? _selectedChildClass
                     : (widget.user.className ?? 'SMKN 1 Bantul'))
                 : widget.user.className,
             onEditProfile: () async {
@@ -402,7 +437,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
                   label: 'Tingkat Kehadiran Presensi',
                   footerTitle: widget.isParent ? _selectedChildName : greetingName,
                   footerSubtitle: widget.isParent
-                      ? _selectedChildClass
+                      ? 'Wali dari $_selectedChildName • $_selectedChildClass'
                       : widget.user.className ?? 'SMKN 1 Bantul',
                   gradient: ScpColors.primaryGradient,
                   icon: Icons.badge_outlined,
@@ -602,7 +637,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
 
             if (_leaveError != null)
               ScpEmpty(message: _leaveError!, icon: Icons.cloud_off_outlined)
-            else if (_leaves.isEmpty)
+            else if (_scopedLeaves.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 child: ScpEmpty(
@@ -611,8 +646,8 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
                 ),
               )
             else
-              for (var i = 0; i < _leaves.length && i < 4; i++)
-                _leaveRow(_leaves[i], i),
+              for (var i = 0; i < _scopedLeaves.length && i < 4; i++)
+                _leaveRow(_scopedLeaves[i], i),
           ],
         ],
       ),
@@ -630,7 +665,19 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
   }
 
   String get _selectedChildName {
-    return _selectedChild?['fullname']?.toString() ?? 'Siswa';
+    final fromChild = _selectedChild?['fullname']?.toString().trim();
+    if (fromChild != null && fromChild.isNotEmpty) return fromChild;
+    final parentFullname = widget.user.fullname.trim();
+    if (parentFullname.isNotEmpty) {
+      final stripped = parentFullname
+          .replaceFirst(
+            RegExp(r'^(orang\s*tua|wali\s*dari|wali)\s+', caseSensitive: false),
+            '',
+          )
+          .trim();
+      if (stripped.isNotEmpty) return stripped;
+    }
+    return 'Siswa';
   }
 
   String get _selectedChildClass {
@@ -731,7 +778,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
       subtitle: '$start - $end  •  Ruang $room',
       trailing: start,
       trailingColor: ScpColors.blue,
-      onTap: () => widget.onNavigateTab?.call(1),
+      onTap: () => widget.onNavigateTab?.call(2),
     );
   }
 
@@ -750,7 +797,7 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
       subtitle: 'Tanggal: $start',
       trailing: _statusLabel(status),
       trailingColor: color,
-      onTap: () => widget.onNavigateTab?.call(2),
+      onTap: () => widget.onNavigateTab?.call(3),
     );
   }
 

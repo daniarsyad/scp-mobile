@@ -82,7 +82,16 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
   }
 
   List<Map<String, dynamic>> _scopedLeaves() {
-    if (widget.isBk) return _leaves;
+    if (widget.isBk) {
+      final bkNames = widget.user.bkClassNames
+          .map((e) => e.toLowerCase())
+          .toSet();
+      if (bkNames.isEmpty) return _leaves;
+      return _leaves.where((item) {
+        final cls = _studentClassName(item).toLowerCase();
+        return bkNames.contains(cls);
+      }).toList();
+    }
     final target = widget.user.className;
     if (target == null || target.isEmpty) return _leaves;
 
@@ -117,7 +126,7 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
             line: greetingLine(),
             name: name,
             roleName: role,
-            className: widget.user.className,
+            className: widget.user.displayClassName,
             onEditProfile: () async {
               final updated = await Navigator.push<UserModel>(
                 context,
@@ -149,7 +158,7 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
                 ScpHeroData(
                   value: '${scoped.length}',
                   label: widget.isBk
-                      ? 'Izin menunggu pemantauan (Semua Kelas)'
+                      ? 'Izin menunggu verifikasi (${widget.user.displayClassName ?? "Kelas Binaan"})'
                       : 'Izin menunggu (Kelas ${widget.user.className ?? ""})',
                   footerTitle: name,
                   footerSubtitle: widget.isBk
@@ -187,7 +196,7 @@ class _VerifikatorHomeTabState extends State<VerifikatorHomeTab> {
                   ),
                   ScpQuickActionItem(
                     icon: Icons.fact_check_rounded,
-                    title: 'Monitoring\nIzin Siswa',
+                    title: 'Verifikasi\nIzin Siswa',
                     color: ScpColors.amber,
                     bg: ScpColors.amberCard,
                     onTap: () => widget.onNavigateTab?.call(2),

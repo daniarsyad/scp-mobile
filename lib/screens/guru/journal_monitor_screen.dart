@@ -341,11 +341,19 @@ class _JournalMonitorScreenState extends State<JournalMonitorScreen> {
 
   Widget _journalCard(Map<String, dynamic> journal) {
     final schedule = asMap(journal['schedule']);
-    final className = asMap(schedule['class'])['class_name']?.toString() ?? '-';
+    final className =
+        asMap(journal['class'])['class_name']?.toString() ??
+        asMap(schedule['class'])['class_name']?.toString() ??
+        '-';
     final teacher =
         asMap(journal['teacher'])['fullname']?.toString() ??
+        asMap(schedule['teacher'])['fullname']?.toString() ??
         journal['teacher_name']?.toString() ??
         'Guru';
+    final subject =
+        journal['subject']?.toString() ??
+        schedule['subject']?.toString() ??
+        'Mata Pelajaran';
     final photoUrl = resolveMedia(journal['photo_path']);
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -355,7 +363,7 @@ class _JournalMonitorScreenState extends State<JournalMonitorScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              schedule['subject']?.toString() ?? 'Mata Pelajaran',
+              subject,
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),

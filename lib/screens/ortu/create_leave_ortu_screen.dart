@@ -1,14 +1,19 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/api_config.dart';
 import '../../services/api_service.dart';
+import '../../utils/live_refresh.dart';
 
 class CreateLeaveOrtuScreen extends StatefulWidget {
-  const CreateLeaveOrtuScreen({super.key});
+  final int? initialStudentId;
+
+  const CreateLeaveOrtuScreen({super.key, this.initialStudentId});
 
   @override
   State<CreateLeaveOrtuScreen> createState() => _CreateLeaveOrtuScreenState();
@@ -17,12 +22,15 @@ class CreateLeaveOrtuScreen extends StatefulWidget {
 class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
   final _api = ApiService();
   final _reasonController = TextEditingController();
+  final _picker = ImagePicker();
 
   List<dynamic> _children = [];
   int? _selectedChildId;
   DateTime? _startDate;
   DateTime? _endDate;
   String _leaveType = 'Izin';
+  XFile? _document;
+  Uint8List? _docBytes;
   bool _loading = false;
   bool _loadingChildren = true;
   String? _error;
@@ -35,17 +43,40 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
 
   Future<void> _loadChildren() async {
     final result = await _api.get(ApiConfig.children);
+    if (!mounted) return;
     setState(() {
       _loadingChildren = false;
       if (result['success'] == true) {
         final data = result['data'];
         _children = data is List ? data : [];
         if (_children.isNotEmpty) {
-          _selectedChildId = _children.first['id'];
+          final hasInitial =
+              widget.initialStudentId != null &&
+              _children.any((c) => '${c['id']}' == '${widget.initialStudentId}');
+          _selectedChildId = hasInitial
+              ? widget.initialStudentId
+              : (_children.first['id'] is int
+                    ? _children.first['id'] as int
+                    : int.tryParse('${_children.first['id']}'));
         }
       } else {
         _error = result['message'] ?? 'Gagal memuat data anak';
       }
+    });
+  }
+
+  Future<void> _pickDocument(ImageSource source) async {
+    final x = await _picker.pickImage(
+      source: source,
+      imageQuality: 70,
+      preferredCameraDevice: CameraDevice.rear,
+    );
+    if (x == null) return;
+    final bytes = await x.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _document = x;
+      _docBytes = bytes;
     });
   }
 
@@ -114,16 +145,27 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
       request.fields['reason'] = _reasonController.text.trim();
       request.fields['leave_type'] = _leaveType;
 
+      if (_docBytes != null) {
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'document',
+            _docBytes!,
+            filename: 'surat_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          ),
+        );
+      }
+
       final streamed = await request.send().timeout(
-        const Duration(seconds: 20),
+        const Duration(seconds: 25),
       );
       final response = await http.Response.fromStream(streamed);
-      final data = jsonDecode(response.body);
+      final data = response.body.isNotEmpty ? jsonDecode(response.body) : {};
 
       setState(() => _loading = false);
       if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        LiveRefresh.pingLeaves();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Pengajuan izin anak berhasil dikirim'),
@@ -228,6 +270,44 @@ class _CreateLeaveOrtuScreenState extends State<CreateLeaveOrtuScreen> {
                       alignLabelWithHint: true,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Lampiran Surat / Foto Bukti (Opsional)',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _pickDocument(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: Text(
+                            _document == null ? 'Kamera' : 'Foto Ulang',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _pickDocument(ImageSource.gallery),
+                          icon: const Icon(Icons.photo_library_outlined),
+                          label: const Text('Galeri'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_docBytes != null) ...[
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(
+                        _docBytes!,
+                        height: 150,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ],
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(_error!, style: const TextStyle(color: Colors.red)),

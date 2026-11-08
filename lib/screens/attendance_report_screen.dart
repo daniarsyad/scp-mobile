@@ -137,11 +137,24 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         ? asMap(data['filters'])
         : data;
     final classes = _optionsFrom(filters, ['classes', 'class']);
+    final bkIds = widget.isBk
+        ? (widget.user?.bkClassIds ?? const <int>[])
+        : const <int>[];
+    final bkNames = widget.isBk
+        ? (widget.user?.bkClassNames.map((n) => n.toLowerCase()).toSet() ??
+              const <String>{})
+        : const <String>{};
+    final filteredClasses = classes.where((opt) {
+      if (bkIds.isEmpty && bkNames.isEmpty) return true;
+      final id = int.tryParse(opt.id);
+      if (id != null && bkIds.contains(id)) return true;
+      return bkNames.contains(opt.name.toLowerCase());
+    }).toList();
     setState(() {
       _filtersLoading = false;
       _filterOptions = filters;
       _classList = [
-        for (final option in classes)
+        for (final option in filteredClasses)
           {'id': option.id, 'class_name': option.name},
       ];
       _filterError = null;
@@ -949,7 +962,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                           ),
                         ),
                         Text(
-                          'Guru BK dapat memantau presensi seluruh kelas dengan filter.',
+                          'Guru BK dapat memantau presensi kelas binaan dengan filter.',
                           style: TextStyle(
                             fontSize: 11,
                             color: Color(0xFF5B21B6),
@@ -1500,6 +1513,8 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         student['alpha'] ?? student['absent'] ?? student['alpha_count'] ?? 0;
     final consecutive =
         student['consecutive_alpha'] ??
+        student['max_alpha_consecutive_days'] ??
+        student['alpha_consecutive_days'] ??
         student['consecutive_absences'] ??
         student['alpha_streak'];
 
