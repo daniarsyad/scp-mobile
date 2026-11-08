@@ -8,9 +8,10 @@ class ApiConfig {
   // - Mode HP Fisik (Wi-Fi Laptop): 'http://192.168.x.x:8000/api'
   // - Mode Web / Localhost: 'http://127.0.0.1:8000/api'
   
-  // static const String _defaultUrl = 'https://nama-domain-anda.com/api'; // Mode Hosting
-  // static const String _defaultUrl = 'http://10.0.2.2:8000/api'; // Mode Emulator Android
-  static const String _defaultUrl = 'http://127.0.0.1:8000/api'; // Mode Lokal / Web
+  // Mode Hosting / Production:
+  static const String _defaultUrl = 'https://escepegaul.web.id/api';
+  // Mode Emulator Android: 'http://10.0.2.2:8000/api'
+  // Mode Lokal / Web: 'http://127.0.0.1:8000/api'
 
   static const String baseUrl = String.fromEnvironment(
     'SCP_API_BASE_URL',
