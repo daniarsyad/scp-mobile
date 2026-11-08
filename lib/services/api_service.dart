@@ -94,6 +94,8 @@ class ApiService {
               ? 'Jurnal untuk jadwal ini pada hari ini sudah pernah diisi.'
               : response.statusCode == 422
               ? 'Data tidak valid atau belum memenuhi syarat.'
+              : response.statusCode >= 500
+              ? 'Tidak ada jadwal pelajaran atau layanan sedang dalam pemeliharaan.'
               : response.statusCode >= 400
               ? 'Permintaan gagal (HTTP ${response.statusCode}).'
               : '',
@@ -215,6 +217,8 @@ class ApiService {
               ? 'Jurnal untuk jadwal ini pada hari ini sudah pernah diisi.'
               : response.statusCode == 422
               ? 'Data tidak valid atau belum memenuhi syarat.'
+              : response.statusCode >= 500
+              ? 'Tidak ada jadwal pelajaran atau layanan sedang dalam pemeliharaan.'
               : response.statusCode >= 400
               ? 'Permintaan gagal (HTTP ${response.statusCode}).'
               : '',
@@ -236,10 +240,13 @@ class ApiService {
     final isGeneric = message != null &&
         (message.toLowerCase().contains('given data was invalid') ||
          message.toLowerCase() == 'validation failed' ||
-         message.toLowerCase() == 'validasi gagal');
+         message.toLowerCase() == 'validasi gagal' ||
+         message.toLowerCase() == 'server error');
 
     if (message != null && message.isNotEmpty && !isGeneric) {
       parts.add(message);
+    } else if (message != null && message.toLowerCase() == 'server error') {
+      parts.add('Tidak ada jadwal pelajaran atau layanan sedang dalam pemeliharaan.');
     }
 
     final errors = body['errors'];

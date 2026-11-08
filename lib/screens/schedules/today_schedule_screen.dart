@@ -104,19 +104,27 @@ class _TodayScheduleScreenState extends State<TodayScheduleScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _error != null
+          : _error != null && !(_error!.toLowerCase().contains('server error') || DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday)
               ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
               : _schedules.isEmpty
                   ? Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.event_busy, size: 48, color: Colors.grey.shade400),
+                          Icon(
+                            (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday)
+                                ? Icons.weekend_outlined
+                                : Icons.event_busy,
+                            size: 48,
+                            color: Colors.grey.shade400,
+                          ),
                           const SizedBox(height: 12),
                           Text(
-                            _day.isEmpty
-                                ? 'Tidak ada jadwal hari ini'
-                                : 'Tidak ada jadwal untuk $_day',
+                            (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday)
+                                ? 'Hari ini libur akhir pekan (${_day.isNotEmpty ? _day : "Sabtu/Minggu"}). Tidak ada jadwal pelajaran.'
+                                : (_day.isEmpty
+                                    ? 'Tidak ada jadwal hari ini'
+                                    : 'Tidak ada jadwal untuk $_day'),
                             style: TextStyle(color: Colors.grey.shade600),
                           ),
                         ],

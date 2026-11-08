@@ -549,8 +549,14 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
 
             if (_dashboardError != null)
               ScpEmpty(
-                message: _dashboardError!,
-                icon: Icons.cloud_off_outlined,
+                message: (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday)
+                    ? 'Hari ini libur akhir pekan (tidak ada jadwal pelajaran)'
+                    : (_dashboardError!.toLowerCase().contains('server error')
+                        ? 'Tidak ada jadwal pelajaran hari ini'
+                        : _dashboardError!),
+                icon: (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday)
+                    ? Icons.weekend_outlined
+                    : Icons.cloud_off_outlined,
               )
             else if (widget.isParent && _selectedStudentId == null)
               const ScpEmpty(
@@ -558,11 +564,15 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
                 icon: Icons.person_off_outlined,
               )
             else if (_schedules.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
                 child: ScpEmpty(
-                  message: 'Belum ada data dashboard hari ini',
-                  icon: Icons.event_available_outlined,
+                  message: (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday)
+                      ? 'Hari ini libur akhir pekan (tidak ada jadwal pelajaran)'
+                      : 'Tidak ada jadwal pelajaran hari ini',
+                  icon: (DateTime.now().weekday == DateTime.saturday || DateTime.now().weekday == DateTime.sunday)
+                      ? Icons.weekend_outlined
+                      : Icons.event_available_outlined,
                 ),
               )
             else
