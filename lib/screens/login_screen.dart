@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../config/api_config.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart';
 import '../theme/scp_theme.dart';
@@ -67,107 +66,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _identifier.dispose();
     _password.dispose();
     super.dispose();
-  }
-
-  void _showServerConfigDialog() {
-    final urlCtrl = TextEditingController(text: ApiConfig.baseUrl);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.dns_rounded, color: ScpColors.blue, size: 22),
-            SizedBox(width: 8),
-            Text(
-              'Pengaturan Server API',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Masukkan URL backend Anda (misal domain hosting atau IP laptop):',
-                style: TextStyle(fontSize: 13, color: ScpColors.muted),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: urlCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Base URL API',
-                  hintText: 'https://domain-anda.com/api',
-                  prefixIcon: Icon(Icons.link_rounded, size: 20),
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                'Pilihan Cepat:',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: ScpColors.text,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  ActionChip(
-                    label: const Text('Hosting (escepegaul.web.id)', style: TextStyle(fontSize: 11)),
-                    onPressed: () => urlCtrl.text = 'https://escepegaul.web.id/api',
-                  ),
-                  ActionChip(
-                    label: const Text('Localhost (127.0.0.1)', style: TextStyle(fontSize: 11)),
-                    onPressed: () => urlCtrl.text = 'http://127.0.0.1:8000/api',
-                  ),
-                  ActionChip(
-                    label: const Text('Emulator (10.0.2.2)', style: TextStyle(fontSize: 11)),
-                    onPressed: () => urlCtrl.text = 'http://10.0.2.2:8000/api',
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await ApiConfig.setCustomUrl(null);
-              if (mounted) setState(() {});
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Reset Default', style: TextStyle(color: ScpColors.muted)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newUrl = urlCtrl.text.trim();
-              if (newUrl.isNotEmpty) {
-                await ApiConfig.setCustomUrl(newUrl);
-                if (mounted) setState(() {});
-              }
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Server API diatur ke: ${ApiConfig.baseUrl}'),
-                    backgroundColor: ScpColors.blue,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ScpColors.blue,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Simpan'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -386,40 +284,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  InkWell(
-                    onTap: _showServerConfigDialog,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: ScpColors.line),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.cloud_outlined, size: 16, color: ScpColors.muted),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              'Server: ${ApiConfig.baseUrl}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: ScpColors.muted,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Icon(Icons.edit_outlined, size: 14, color: ScpColors.muted),
-                        ],
-                      ),
                     ),
                   ),
                 ],

@@ -2,15 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'config/api_config.dart';
 import 'screens/splash_screen.dart';
 import 'services/api_service.dart';
 import 'services/app_theme_controller.dart';
 import 'theme/scp_theme.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await ApiConfig.init();
   runApp(const ScpApp());
   WidgetsBinding.instance.addPostFrameCallback((_) {
     unawaited(AppThemeController.instance.load());
