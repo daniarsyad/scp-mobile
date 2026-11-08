@@ -314,20 +314,39 @@ class _MyJournalsScreenState extends State<MyJournalsScreen> {
                                                     size: 26,
                                                   ),
                                                 )
-                                              : Image.network(
-                                                  photoUrl,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (_, _, _) =>
-                                                      Container(
-                                                        color: ScpColors
-                                                            .surfaceAlt,
+                                              : GestureDetector(
+                                                  onTap: () => showMediaPreview(
+                                                    context,
+                                                    photoUrl,
+                                                    title: 'Foto Jurnal ($subject)',
+                                                  ),
+                                                  child: Image.network(
+                                                    photoUrl,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (_, _, _) {
+                                                      final alt = alternateMediaUrl(photoUrl);
+                                                      if (alt != null && alt != photoUrl) {
+                                                        return Image.network(
+                                                          alt,
+                                                          fit: BoxFit.cover,
+                                                          errorBuilder: (_, _, _) => Container(
+                                                            color: ScpColors.surfaceAlt,
+                                                            child: const Icon(
+                                                              Icons.broken_image_outlined,
+                                                              color: ScpColors.muted,
+                                                            ),
+                                                          ),
+                                                        );
+                                                      }
+                                                      return Container(
+                                                        color: ScpColors.surfaceAlt,
                                                         child: const Icon(
-                                                          Icons
-                                                              .broken_image_outlined,
-                                                          color:
-                                                              ScpColors.muted,
+                                                          Icons.broken_image_outlined,
+                                                          color: ScpColors.muted,
                                                         ),
-                                                      ),
+                                                      );
+                                                    },
+                                                  ),
                                                 ),
                                         ),
                                       ),

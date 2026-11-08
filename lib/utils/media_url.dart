@@ -9,10 +9,86 @@ String? resolveMedia(dynamic raw) {
   }
   final text = raw.toString().trim();
   if (text.isEmpty || text == 'null') return null;
-  if (text.startsWith('http://') || text.startsWith('https://')) return text;
+
   final origin = ApiConfig.baseUrl.replaceFirst(RegExp(r'/api/?$'), '');
-  if (text.startsWith('/')) return '$origin$text';
-  return '$origin/storage/$text';
+  final isLocalServer = origin.contains('127.0.0.1') ||
+      origin.contains('localhost') ||
+      origin.contains('10.0.2.2');
+
+  if (text.startsWith('http://') || text.startsWith('https://')) {
+    if (!isLocalServer &&
+        text.contains('/storage/') &&
+        !text.contains('/public/storage/')) {
+      return text.replaceFirst('/storage/', '/public/storage/');
+    }
+    return text;
+  }
+
+  var cleanPath = text;
+  while (cleanPath.startsWith('/')) {
+    cleanPath = cleanPath.substring(1);
+  }
+  if (cleanPath.startsWith('public/storage/')) {
+    cleanPath = cleanPath.substring('public/storage/'.length);
+  } else if (cleanPath.startsWith('storage/')) {
+    cleanPath = cleanPath.substring('storage/'.length);
+  }
+
+  if (cleanPath.isEmpty) return null;
+  if (isLocalServer) {
+    return '$origin/storage/$cleanPath';
+  }
+  return '$origin/public/storage/$cleanPath';
+}
+
+String? alternateMediaUrl(String url) {
+  if (url.contains('/public/storage/')) {
+    return url.replaceFirst('/public/storage/', '/storage/');
+  }
+  if (url.contains('/storage/')) {
+    return url.replaceFirst('/storage/', '/public/storage/');
+  }
+  return null;
+}
+
+Widget buildNetworkMediaImage(
+  String url, {
+  BoxFit fit = BoxFit.contain,
+  double? width,
+  double? height,
+  String errorText = 'Berkas tidak bisa ditampilkan.',
+}) {
+  final altUrl = alternateMediaUrl(url);
+  return Image.network(
+    url,
+    fit: fit,
+    width: width,
+    height: height,
+    errorBuilder: (_, _, _) {
+      if (altUrl != null && altUrl != url) {
+        return Image.network(
+          altUrl,
+          fit: fit,
+          width: width,
+          height: height,
+          errorBuilder: (_, _, _) => Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              errorText,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          errorText,
+          textAlign: TextAlign.center,
+        ),
+      );
+    },
+  );
 }
 
 String? firstMedia(Map item, List<String> keys) {
@@ -75,16 +151,10 @@ void showMediaPreview(BuildContext context, String url, {String title = 'Lampira
           ),
           ClipRRect(
             borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
-            child: Image.network(
+            child: buildNetworkMediaImage(
               url,
               fit: BoxFit.contain,
-              errorBuilder: (_, _, _) => const Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Berkas tidak bisa ditampilkan.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+              errorText: 'Berkas tidak bisa ditampilkan.',
             ),
           ),
         ],

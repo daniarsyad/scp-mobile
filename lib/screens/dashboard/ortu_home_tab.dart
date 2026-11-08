@@ -6,6 +6,7 @@ import '../../services/api_service.dart';
 import '../../theme/scp_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/live_refresh.dart';
+import '../../utils/media_url.dart';
 import '../../widgets/dashboard_kit.dart';
 import '../ortu/create_leave_ortu_screen.dart';
 
@@ -348,9 +349,12 @@ class _OrtuHomeTabState extends State<OrtuHomeTab> {
     final start = formatShortDate((item['start_date'] ?? '').toString());
     final reason = item['reason']?.toString() ?? '-';
     final leaveType = item['leave_type']?.toString() ?? 'Izin';
-    final cancelled = item['cancelled_at'] != null;
+    final cancelled = item['cancelled_at'] != null &&
+        item['cancelled_at'].toString().trim().isNotEmpty &&
+        item['cancelled_at'].toString() != 'null';
     final canCancel = !cancelled && status.toLowerCase() == 'pending';
     final rejection = item['rejection_reason']?.toString();
+    final docUrl = firstMedia(item, suratKeys);
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -367,6 +371,23 @@ class _OrtuHomeTabState extends State<OrtuHomeTab> {
             ),
             const SizedBox(height: 4),
             Text('Tanggal mulai: $start • $reason'),
+            if (docUrl != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: OutlinedButton.icon(
+                  onPressed: () => showMediaPreview(
+                    context,
+                    docUrl,
+                    title: 'Lampiran Surat ($leaveType)',
+                  ),
+                  icon: const Icon(Icons.attachment_rounded, size: 16),
+                  label: const Text('Lihat Lampiran Surat'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: ScpColors.blue,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
             if (rejection != null && rejection.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),

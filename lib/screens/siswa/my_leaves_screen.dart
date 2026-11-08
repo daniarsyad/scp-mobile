@@ -142,26 +142,42 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'approved':
+      case 'disetujui':
         return Colors.green;
       case 'rejected':
+      case 'ditolak':
         return Colors.red;
       case 'cancelled':
       case 'canceled':
-        return Colors.grey;
+      case 'dibatalkan':
+        return Colors.grey.shade600;
       default:
         return Colors.orange;
     }
   }
 
+  bool _isCancelled(Map item) {
+    final raw = item['cancelled_at'];
+    return raw != null &&
+        raw.toString().trim().isNotEmpty &&
+        raw.toString() != 'null';
+  }
+
   String _statusLabel(Map item) {
-    if (item['cancelled_at'] != null) return 'Dibatalkan';
+    if (_isCancelled(item)) return 'Dibatalkan';
     final status = (item['status_approval'] ?? item['status'] ?? 'Pending')
         .toString();
     switch (status.toLowerCase()) {
       case 'approved':
+      case 'disetujui':
         return 'Disetujui';
       case 'rejected':
+      case 'ditolak':
         return 'Ditolak';
+      case 'cancelled':
+      case 'canceled':
+      case 'dibatalkan':
+        return 'Dibatalkan';
       default:
         return 'Menunggu';
     }
@@ -171,7 +187,7 @@ class _MyLeavesScreenState extends State<MyLeavesScreen> {
     final status = (item['status_approval'] ?? item['status'] ?? 'Pending')
         .toString()
         .toLowerCase();
-    return item['cancelled_at'] == null && status == 'pending';
+    return !_isCancelled(item) && status == 'pending';
   }
 
   @override

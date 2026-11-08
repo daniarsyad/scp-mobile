@@ -202,15 +202,10 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
               const SizedBox(height: 12),
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(
+                child: buildNetworkMediaImage(
                   imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, _, _) => const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(
-                      child: Text('Gagal menampilkan gambar surat dokter'),
-                    ),
-                  ),
+                  errorText: 'Gagal menampilkan gambar surat dokter',
                 ),
               ),
               const SizedBox(height: 12),

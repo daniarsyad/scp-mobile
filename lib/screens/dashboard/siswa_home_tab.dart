@@ -794,8 +794,12 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
 
   Widget _leaveRow(Map<String, dynamic> item, int index) {
     final palette = activityPalette[(index + 2) % activityPalette.length];
-    final status = (item['status_approval'] ?? item['status'] ?? 'Pending')
-        .toString();
+    final isCancelled = item['cancelled_at'] != null &&
+        item['cancelled_at'].toString().trim().isNotEmpty &&
+        item['cancelled_at'].toString() != 'null';
+    final status = isCancelled
+        ? 'Cancelled'
+        : (item['status_approval'] ?? item['status'] ?? 'Pending').toString();
     final start = formatShortDate((item['start_date'] ?? '').toString());
     final reason = item['reason']?.toString() ?? '-';
     final color = _statusColor(status);
@@ -814,9 +818,15 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'approved':
+      case 'disetujui':
         return ScpColors.green;
       case 'rejected':
+      case 'ditolak':
         return ScpColors.red;
+      case 'cancelled':
+      case 'canceled':
+      case 'dibatalkan':
+        return ScpColors.muted;
       default:
         return ScpColors.amber;
     }
@@ -825,9 +835,15 @@ class _SiswaHomeTabState extends State<SiswaHomeTab> {
   String _statusLabel(String status) {
     switch (status.toLowerCase()) {
       case 'approved':
+      case 'disetujui':
         return 'Disetujui';
       case 'rejected':
+      case 'ditolak':
         return 'Ditolak';
+      case 'cancelled':
+      case 'canceled':
+      case 'dibatalkan':
+        return 'Dibatalkan';
       default:
         return 'Menunggu';
     }
