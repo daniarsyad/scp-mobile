@@ -154,7 +154,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final controller = TextEditingController(text: currentNote);
 
     const quickNotes = [
-      'Nyekip jam pelajaran',
       'Motong jam pelajaran',
       'Cabut setelah istirahat',
       'Meninggalkan kelas tanpa izin',
@@ -185,7 +184,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Catatan siswa (misal: nyekip/motong jam pelajaran):',
+                'Catatan siswa (misal: motong jam pelajaran):',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
               const SizedBox(height: 10),
@@ -314,7 +313,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ListTile(
                 leading: const Icon(Icons.edit_note_rounded, color: ScpColors.blue),
                 title: const Text(
-                  'Catatan Siswa (Nyekip / Motong Jam)',
+                  'Catatan Siswa',
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 ),
                 subtitle: Text(

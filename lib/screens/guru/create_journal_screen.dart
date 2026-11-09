@@ -548,7 +548,6 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
     final controller = TextEditingController(text: currentNote);
 
     const quickNotes = [
-      'Nyekip jam pelajaran',
       'Motong jam pelajaran',
       'Cabut setelah istirahat',
       'Meninggalkan kelas tanpa izin',
@@ -579,7 +578,7 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Catatan khusus jika siswa memotong jam / nyekip pelajaran:',
+                'Catatan khusus jika siswa memotong jam pelajaran:',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
               const SizedBox(height: 10),
@@ -681,7 +680,7 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
             ListTile(
               leading: const Icon(Icons.edit_note_rounded, color: ScpColors.blue),
               title: const Text(
-                'Catatan Siswa (Nyekip / Motong Jam)',
+                'Catatan Siswa',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               ),
               subtitle: Text(
@@ -1071,7 +1070,7 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
                       Icon(Icons.edit_note_rounded, size: 18, color: Colors.amber.shade900),
                       const SizedBox(width: 4),
                       Text(
-                        notes.isNotEmpty ? 'Catatan (Ada)' : 'Catatan (Nyekip/Motong Jam)',
+                        notes.isNotEmpty ? 'Catatan (Ada)' : 'Catatan',
                         style: TextStyle(
                           color: Colors.amber.shade900,
                           fontWeight: FontWeight.w600,
@@ -1117,7 +1116,7 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
                         child: Text(
                           hasNotes
                               ? 'Catatan: $notes'
-                              : 'Klik untuk mengisi catatan (misal: nyekip jam pelajaran)...',
+                              : 'Klik untuk mengisi catatan (misal: motong jam pelajaran)...',
                           style: TextStyle(
                             fontSize: 12,
                             color: hasNotes ? Colors.amber.shade900 : Colors.grey.shade700,
