@@ -92,9 +92,6 @@ bool journalFilledToday(Map schedule) {
         return true;
       }
     } catch (_) {}
-    if (item['id'] != null) {
-      return true;
-    }
   }
   return false;
 }
@@ -117,9 +114,6 @@ Map<String, dynamic>? journalForToday(Map schedule) {
         return Map<String, dynamic>.from(item);
       }
     } catch (_) {}
-    if (item['id'] != null) {
-      return Map<String, dynamic>.from(item);
-    }
   }
   return null;
 }

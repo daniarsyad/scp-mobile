@@ -90,7 +90,7 @@ class ApiService {
               : response.statusCode == 422
               ? 'Data tidak valid atau belum memenuhi syarat.'
               : response.statusCode >= 500
-              ? 'Tidak ada jadwal pelajaran atau layanan sedang dalam pemeliharaan.'
+              ? 'Terjadi kesalahan internal pada server (HTTP ${response.statusCode}).'
               : response.statusCode >= 400
               ? 'Permintaan gagal (HTTP ${response.statusCode}).'
               : '',
@@ -203,7 +203,7 @@ class ApiService {
               : response.statusCode == 422
               ? 'Data tidak valid atau belum memenuhi syarat.'
               : response.statusCode >= 500
-              ? 'Tidak ada jadwal pelajaran atau layanan sedang dalam pemeliharaan.'
+              ? 'Terjadi kesalahan internal pada server (HTTP ${response.statusCode}).'
               : response.statusCode >= 400
               ? 'Permintaan gagal (HTTP ${response.statusCode}).'
               : '',
@@ -275,7 +275,7 @@ class ApiService {
     if (message != null && message.isNotEmpty && !isGeneric) {
       parts.add(message);
     } else if (message != null && message.toLowerCase() == 'server error') {
-      parts.add('Tidak ada jadwal pelajaran atau layanan sedang dalam pemeliharaan.');
+      parts.add('Terjadi kesalahan internal pada server (Server Error).');
     }
 
     final errors = body['errors'];

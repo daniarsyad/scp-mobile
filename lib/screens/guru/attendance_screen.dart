@@ -147,7 +147,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Future<void> _openNoteDialog(Map item) async {
-    final id = item['id'] as int;
+    final id = item['id'] is int ? item['id'] as int : int.tryParse('${item['id']}') ?? 0;
     final name = item['student']?['fullname'] ?? '-';
     final currentStatus = (item['status'] ?? 'Hadir').toString();
     final currentNote = (item['notes'] ?? '').toString();

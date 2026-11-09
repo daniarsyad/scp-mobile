@@ -114,7 +114,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     }
     final nisn = student['nisn'] ?? nested['nisn'] ?? student['nis'] ?? nested['nis'];
     if (nisn != null && nisn.toString().isNotEmpty) {
-      return 'Siswa ()';
+      return 'Siswa ($nisn)';
     }
     return 'Siswa';
   }

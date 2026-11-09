@@ -324,8 +324,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = _currentUser;
     final colors = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      key: _scaffoldKey,
+    return PopScope(
+      canPop: selectedIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       drawer: Drawer(
         backgroundColor: colors.surface,
@@ -772,6 +780,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

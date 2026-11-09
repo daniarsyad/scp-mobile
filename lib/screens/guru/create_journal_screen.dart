@@ -807,12 +807,48 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
           ),
         ),
         if (locked)
-          const Padding(
-            padding: EdgeInsets.only(top: 12),
-            child: Text(
-              'Draf terkunci karena hasil pengiriman sebelumnya belum pasti. '
-              'Retry akan menggunakan payload dan Idempotency-Key yang sama.',
-              style: TextStyle(color: Colors.deepOrange),
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.deepOrange.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.deepOrange.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Draf terkunci karena hasil pengiriman sebelumnya belum pasti. '
+                    'Retry akan menggunakan payload dan Idempotency-Key yang sama.',
+                    style: TextStyle(color: Colors.deepOrange, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.deepOrange,
+                      side: const BorderSide(color: Colors.deepOrange),
+                    ),
+                    onPressed: () {
+                      final current = _draft;
+                      if (current == null) return;
+                      final unlocked = current.copyWith(
+                        submissionUncertain: false,
+                        submissionAttempted: false,
+                        idempotencyKey: _store.newIdempotencyKey(),
+                      );
+                      _draft = unlocked;
+                      _enqueueSave(unlocked);
+                      setState(() {
+                        _error = null;
+                      });
+                    },
+                    icon: const Icon(Icons.lock_open_rounded, size: 16),
+                    label: const Text('Buka Kunci & Edit Draf'),
+                  ),
+                ],
+              ),
             ),
           ),
         const SizedBox(height: 16),
