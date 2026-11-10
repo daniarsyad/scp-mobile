@@ -7,6 +7,7 @@ import 'home_screen.dart';
 import 'forgot_password_screen.dart';
 import '../widgets/school_logo.dart';
 
+// Halaman masuk multi peran (Guru, Wali Kelas, Guru BK, Siswa, Orang Tua)
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -22,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscure = true;
   String? _error;
 
+  // Proses autentikasi masuk dan penyimpanan token akses
   Future<void> _login() async {
     final identifierText = _identifier.text.trim();
     final passwordText = _password.text;

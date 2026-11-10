@@ -15,6 +15,7 @@ import '../guru/create_journal_screen.dart';
 import '../edit_profile_screen.dart';
 import '../../services/journal_draft_store.dart';
 
+// Beranda Guru (jadwal KBM dan perkembangan jurnal hari ini)
 class GuruHomeTab extends StatefulWidget {
   final UserModel user;
   final ValueChanged<Map<String, dynamic>?> onNextSchedule;
@@ -56,6 +57,7 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
   @override
   void initState() {
     super.initState();
+    // Pembaruan otomatis (menghilangkan peringatan saat jurnal selesai tersimpan)
     LiveRefresh.journals.addListener(_onPing);
     _load();
     _timer = Timer.periodic(
@@ -113,6 +115,7 @@ class _GuruHomeTabState extends State<GuruHomeTab> {
           data['is_schedule_locked'] == true || data['is_schedule_locked'] == 1;
     }
 
+    // Deteksi jadwal hari ini yang belum diisi jurnal KBM
     Map<String, dynamic>? next;
     for (final row in rows) {
       if (!scheduleNotStarted(row) && !journalFilledToday(row)) {

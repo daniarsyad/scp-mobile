@@ -11,6 +11,7 @@ import '../utils/format.dart';
 import '../utils/live_refresh.dart';
 import '../widgets/dashboard_kit.dart';
 
+// Rekapitulasi presensi dan perhitungan persentase kehadiran siswa
 class AttendanceReportScreen extends StatefulWidget {
   final bool isBk;
   final bool embedded;
@@ -345,6 +346,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     return '';
   }
 
+  // Ekspor laporan rekapitulasi presensi ke berkas PDF langsung dari ponsel
   Future<void> _exportReport() async {
     setState(() => _exporting = true);
     try {

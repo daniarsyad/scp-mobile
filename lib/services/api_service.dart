@@ -9,12 +9,14 @@ import '../screens/login_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+// Integrasi komunikasi API dan penyematan token akses
 class ApiService {
   ApiService({this.client});
 
   final http.Client? client;
   static bool _isRedirecting401 = false;
 
+  // Penanganan sesi berakhir (keluar otomatis jika autentikasi kadaluwarsa)
   static Future<void> _handleUnauthorized() async {
     if (_isRedirecting401) return;
     _isRedirecting401 = true;

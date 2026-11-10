@@ -13,6 +13,7 @@ import '../../utils/format.dart';
 import '../../utils/live_refresh.dart';
 import '../../utils/photo_watermark.dart';
 
+// Formulir pengisian jurnal KBM dan presensi massal siswa
 class CreateJournalScreen extends StatefulWidget {
   final Map<String, dynamic> schedule;
   final int ownerId;
@@ -256,6 +257,7 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
     });
   }
 
+  // Pengambilan foto dokumentasi KBM langsung melalui kamera (maksimal 2 megabita)
   Future<void> _pickPhoto() async {
     if (_submissionUncertain) return;
 
@@ -288,6 +290,7 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
       // Normalkan orientasi/mirror EXIF & berikan watermark hari, tanggal, dan jam real-time pada foto
       // Catatan: Jika pickImage di-inject untuk test, jangan modifikasi bytes agar contract test tetap terjaga
       _rawPhotoBytes = bytes;
+      // Sematkan tanda air waktu dan tanggal secara langsung pada foto
       final watermarkedBytes = widget.pickImage == null
           ? applyJournalPhotoWatermark(bytes)
           : bytes;
@@ -338,6 +341,7 @@ class _CreateJournalScreenState extends State<CreateJournalScreen> {
     return null;
   }
 
+  // Simpan jurnal dan presensi massal siswa ke server
   Future<void> _submit() async {
     if (scheduleNotStarted(widget.schedule)) {
       final start = formatTime(widget.schedule['start_time']);

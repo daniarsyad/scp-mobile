@@ -1,8 +1,7 @@
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
-/// Memberikan watermark hari, tanggal, dan jam secara real-time pada foto
-/// di pojok kiri bawah, sekaligus menormalkan orientasi/mirror EXIF kamera.
+// Pemberian tanda air hari, tanggal, dan jam secara langsung pada foto kamera KBM
 Uint8List applyJournalPhotoWatermark(List<int> rawBytes, {DateTime? timestamp}) {
   try {
     final decoded = img.decodeImage(Uint8List.fromList(rawBytes));

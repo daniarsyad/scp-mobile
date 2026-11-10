@@ -125,8 +125,10 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _selectedIndex = index);
   }
 
+  // Navigasi halaman dinamis berdasarkan peran pengguna
   List<Widget> _pages() {
     final user = _currentUser;
+    // Tampilan khusus Guru BK (verifikasi 48 kelas dan rekapitulasi presensi)
     if (user.isGuruBK) {
       return [
         VerifikatorHomeTab(
@@ -155,6 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
       ];
     }
+    // Tampilan khusus Wali Kelas (jurnal KBM dan verifikasi izin kelas)
     if (user.isWaliKelas) {
       return [
         GuruHomeTab(
@@ -181,6 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
       ];
     }
+    // Tampilan khusus Guru Mata Pelajaran (jurnal dan jadwal KBM)
     if (user.isGuru) {
       return [
         GuruHomeTab(
@@ -199,6 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ProfileScreen(user: user, embedded: true, onProfileUpdated: _onProfileUpdated),
       ];
     }
+    // Tampilan khusus Siswa dan Orang Tua (jadwal, presensi, dan izin)
     if (user.isSiswa || user.isOrangTua) {
       final child = _selectedChild;
       return [
@@ -272,6 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ScpNavItem(Icons.menu_book_rounded, 'Riwayat Jurnal'),
       ];
     }
+    // Tampilan khusus Wali Kelas (jurnal KBM dan verifikasi izin kelas)
     if (user.isWaliKelas) {
       return const [
         ScpNavItem(Icons.home_rounded, 'Home'),
@@ -282,6 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ScpNavItem(Icons.event_note_rounded, 'Jadwal'),
       ];
     }
+    // Tampilan khusus Guru Mata Pelajaran (jurnal dan jadwal KBM)
     if (user.isGuru) {
       return const [
         ScpNavItem(Icons.home_rounded, 'Home'),
@@ -290,6 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ScpNavItem(Icons.event_note_rounded, 'Jadwal'),
       ];
     }
+    // Tampilan khusus Siswa dan Orang Tua (jadwal, presensi, dan izin)
     if (user.isSiswa || user.isOrangTua) {
       return const [
         ScpNavItem(Icons.home_rounded, 'Home'),

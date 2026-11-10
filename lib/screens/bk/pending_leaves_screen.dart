@@ -9,6 +9,7 @@ import '../../utils/live_refresh.dart';
 import '../../utils/media_url.dart';
 import '../../widgets/dashboard_kit.dart';
 
+// Daftar pengajuan izin siswa untuk Wali Kelas dan Guru BK
 class PendingLeavesScreen extends StatefulWidget {
   final String? targetClass;
   final bool isBk;
@@ -132,6 +133,7 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
     return ['Semua Kelas', ...set.toList()..sort()];
   }
 
+  // Tindakan verifikasi izin siswa (setujui atau tolak)
   Future<void> _verify(int id, String status, String studentName) async {
     final isApprove = status == 'Approved';
     final decision = await showDialog<Map<String, String>>(
@@ -171,6 +173,7 @@ class _PendingLeavesScreenState extends State<PendingLeavesScreen> {
     }
   }
 
+  // Menampilkan berkas bukti surat dokter atau surat izin
   void _showDoctorLetter(String imageUrl, String studentName) {
     showDialog(
       context: context,

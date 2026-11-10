@@ -10,6 +10,7 @@ import '../../config/api_config.dart';
 import '../../utils/live_refresh.dart';
 import '../../utils/photo_watermark.dart';
 
+// Formulir pengajuan izin atau sakit oleh siswa
 class CreateLeaveScreen extends StatefulWidget {
   const CreateLeaveScreen({super.key});
 
@@ -52,6 +53,7 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
     }
   }
 
+  // Pengambilan foto berkas bukti surat izin langsung melalui kamera
   Future<void> _pickDocument() async {
     try {
       final x = await _picker.pickImage(
@@ -95,6 +97,7 @@ class _CreateLeaveScreenState extends State<CreateLeaveScreen> {
     );
   }
 
+  // Kirim pengajuan izin siswa ke server (status menunggu verifikasi)
   Future<void> _submit() async {
     if (_startDate == null || _endDate == null) {
       setState(() => _error = 'Pilih tanggal mulai dan selesai');
