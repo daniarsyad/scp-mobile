@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../config/api_config.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
@@ -111,13 +112,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _error = 'Kelas wajib dipilih untuk role ini');
       return;
     }
-    if (_needNis && _nis.text.trim().isEmpty) {
-      setState(() => _error = 'NIS wajib diisi untuk Siswa');
-      return;
+    // [VALIDASI NIP & NIS] NIS wajib diisi, hanya angka (panjang digit bebas, tidak boleh huruf)
+    if (_needNis) {
+      final nis = _nis.text.trim();
+      if (nis.isEmpty) {
+        setState(() => _error = 'NIS wajib diisi untuk Siswa');
+        return;
+      }
+      if (!RegExp(r'^[0-9]+$').hasMatch(nis)) {
+        setState(() => _error = 'NIS wajib berupa angka dan tidak boleh mengandung huruf');
+        return;
+      }
     }
-    if (_needNip && _nip.text.trim().isEmpty) {
-      setState(() => _error = 'NIP wajib diisi untuk Guru');
-      return;
+    // [VALIDASI NIP & NIS] NIP wajib diisi, hanya angka, maksimal 18 digit
+    if (_needNip) {
+      final nip = _nip.text.trim();
+      if (nip.isEmpty) {
+        setState(() => _error = 'NIP wajib diisi untuk Guru');
+        return;
+      }
+      if (!RegExp(r'^[0-9]{1,18}$').hasMatch(nip)) {
+        setState(() => _error = 'NIP wajib berupa angka dan maksimal 18 digit (tidak boleh huruf)');
+        return;
+      }
     }
 
     setState(() {
@@ -271,22 +288,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 });
               },
             ),
+            // [VALIDASI NIP & NIS] Input NIS hanya menerima angka (panjang digit bebas)
             if (_needNis) ...[
               const SizedBox(height: 14),
               TextField(
                 controller: _nis,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
                 decoration: const InputDecoration(
-                  labelText: 'NIS',
+                  labelText: 'NIS (Wajib angka)',
+                  hintText: 'Masukkan angka NIS',
                   border: OutlineInputBorder(),
                 ),
               ),
             ],
+            // [VALIDASI NIP & NIS] Input NIP hanya menerima angka dan dibatasi maksimal 18 digit
             if (_needNip) ...[
               const SizedBox(height: 14),
               TextField(
                 controller: _nip,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(18),
+                ],
                 decoration: const InputDecoration(
-                  labelText: 'NIP',
+                  labelText: 'NIP (Maks. 18 digit angka)',
+                  hintText: 'Maksimal 18 angka',
                   border: OutlineInputBorder(),
                 ),
               ),
